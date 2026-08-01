@@ -1,0 +1,87 @@
+# AyurSutra — HerbChain (Farmer Stage Frontend)
+
+React Native (Expo) screen for **Stage 1: Farmer / Wild Collector** of the
+HerbChain custody chain.
+
+## Run it
+
+```bash
+npm install
+npx expo start
+```
+
+Scan the QR with Expo Go (Android/iOS) or run `npm run android` / `npm run ios`.
+
+## What's included
+
+```
+App.js                              # entry point, wires the form + submit handler
+src/theme/theme.js                  # colors, spacing, typography tokens
+src/components/FormField.js         # labeled text input w/ error + hint
+src/components/SegmentedChips.js    # pill selector (source type, harvest method, etc.)
+src/components/LocationCard.js      # GPS capture UI
+src/components/PhotoPicker.js       # camera/gallery multi-photo picker
+src/screens/FarmerCollectionForm.js # the full farmer data-entry screen
+```
+
+## Fields captured (maps directly to the custody record)
+
+| Field | Required | Notes |
+|---|---|---|
+| Batch ID | auto | client-generated placeholder (`HC-YYYYMMDD-XXXX`); real ID is confirmed once minted |
+| Herb name | ✅ | free text |
+| Part collected | — | chip select (root, leaf, bark, etc.) |
+| Collection date & time | ✅ | native date/time pickers, capped at "today" |
+| GPS location | ✅ | `expo-location`, records lat/long + accuracy |
+| Quantity | ✅ | numeric + unit (kg/g/bundles) |
+| Collector name / ID | ✅ (one of the two) | ID field is for a farmer registration or similar |
+| Photos | ✅ | up to 5, camera or gallery via `expo-image-picker` |
+| Quality notes | — | free text |
+| Harvest method | — | chip select |
+| Source type | — | Cultivated vs Wild-collected |
+
+## On submit
+
+`FarmerCollectionForm` calls `onSubmit(record)` with a flat JSON object
+shaped for your backend:
+
+```js
+{
+  stage: 'FARMER_COLLECTION',
+  batchId, herbName, plantPart,
+  collectionTimestamp,           // ISO string
+  location: { latitude, longitude, accuracy, capturedAt },
+  quantity: { value, unit },
+  collector: { name, id },
+  photos: [uri, ...],            // local URIs — upload to storage before minting
+  qualityNotes, harvestMethod, sourceType,
+  recordedAt
+}
+```
+
+Wire `handleSubmit` in `App.js` to:
+1. Upload `photos` (local URIs) to your storage/IPFS.
+2. POST the record + photo hashes/URLs to your backend.
+3. Trigger NFT mint for the batch, then navigate to a confirmation screen.
+
+## Next stages (not built yet)
+
+Aggregator, Processor, and Manufacturer screens will each **append** to
+the same `batchId` rather than create a new one — same pattern (form →
+validate → structured record → append to chain), with fields specific
+to that stage (e.g. processing method, storage conditions, lab test
+results, packaging details).
+
+## Permissions
+
+Requires camera, photo library, and location permissions at runtime
+(handled in-app). Add to `app.json` before building:
+
+```json
+"expo": {
+  "plugins": [
+    ["expo-image-picker", { "cameraPermission": "Allow HerbChain to take harvest photos." }],
+    ["expo-location", { "locationAlwaysAndWhenInUsePermission": "Allow HerbChain to record collection GPS." }]
+  ]
+}
+```
