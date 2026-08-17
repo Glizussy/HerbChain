@@ -100,6 +100,11 @@ export async function submitHerbBatch(record) {
     harvest_method: record.harvestMethod,
     source_type: record.sourceType,
     recorded_at: record.recordedAt,
+
+    // ML-generated plant identification result.
+    // Stored as JSONB: { plant, confidence, top3 }.
+    // Requires an ml_prediction jsonb column in herb_batches.
+    ml_prediction: record.mlPrediction ?? null,
   };
 
   const { data, error } = await supabase

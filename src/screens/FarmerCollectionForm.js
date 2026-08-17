@@ -7,6 +7,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { submitHerbBatch } from '../services/herbBatchService';
+import { classifyPlant } from '../services/plantClassifier';
 import {
   View,
   Text,
@@ -68,6 +69,8 @@ export default function FarmerCollectionForm({ onSubmit }) {
   const [locLoading, setLocLoading] = useState(false);
   const [locError, setLocError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [mlPrediction, setMlPrediction] = useState(null);
+  const [mlLoading, setMlLoading] = useState(false);
 
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -128,7 +131,27 @@ export default function FarmerCollectionForm({ onSubmit }) {
         : await ImagePicker.launchImageLibraryAsync({ quality: 0.7 });
 
     if (!result.canceled && result.assets?.length) {
-      setForm((f) => ({ ...f, photos: [...f.photos, result.assets[0].uri] }));
+      const uri = result.assets[0].uri;
+      setForm((f) => ({ ...f, photos: [...f.photos, uri] }));
+
+      // Run ML classification on the newly added photo.
+      setMlLoading(true);
+      setMlPrediction(null);
+      try {
+        const pred = await classifyPlant(uri);
+        setMlPrediction(pred);
+        // Auto-fill herb name only when the field is still empty.
+        setForm((f) => ({
+          ...f,
+          herbName: f.herbName.trim()
+            ? f.herbName
+            : pred.plant.replace(/_/g, ' '),
+        }));
+      } catch (e) {
+        console.warn('ML classification error (non-fatal):', e.message);
+      } finally {
+        setMlLoading(false);
+      }
     }
   };
 
@@ -171,6 +194,8 @@ export default function FarmerCollectionForm({ onSubmit }) {
       harvestMethod: form.harvestMethod,
       sourceType: form.sourceType,
       recordedAt: new Date().toISOString(),
+      // ML identification result for audit trail (null if classification failed).
+      mlPrediction: mlPrediction ?? null,
     };
 
     try {
@@ -318,6 +343,66 @@ export default function FarmerCollectionForm({ onSubmit }) {
           error={errors.photos}
         />
 
+        {/* ML Suggestion Card — shown while classifying or after a result arrives */}
+        {(mlLoading || mlPrediction) && (
+          <View style={styles.mlCard}>
+            <View style={styles.mlHeader}>
+              <Text style={styles.mlLabel}>🌿 ML IDENTIFICATION</Text>
+              {mlLoading && (
+                <ActivityIndicator size="small" color={colors.primary} />
+              )}
+            </View>
+
+            {mlLoading && (
+              <Text style={[typography.hint, { marginTop: 4 }]}>
+                Analysing image…
+              </Text>
+            )}
+
+            {!mlLoading && mlPrediction && (
+              <>
+                {/* Top prediction */}
+                <Text style={styles.mlPlantName}>
+                  {mlPrediction.plant.replace(/_/g, ' ')}
+                </Text>
+
+                {/* Confidence bar */}
+                <View style={styles.mlConfidenceRow}>
+                  <View style={styles.mlBarTrack}>
+                    <View
+                      style={[
+                        styles.mlBarFill,
+                        { width: `${(mlPrediction.confidence * 100).toFixed(0)}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.mlConfidenceText}>
+                    {(mlPrediction.confidence * 100).toFixed(1)}%
+                  </Text>
+                </View>
+
+                {/* Top-3 breakdown */}
+                <View style={styles.mlDivider} />
+                {mlPrediction.top3.map((item, i) => (
+                  <View key={item.plant} style={styles.mlRow}>
+                    <Text style={styles.mlRowRank}>{i + 1}.</Text>
+                    <Text style={styles.mlRowName}>
+                      {item.plant.replace(/_/g, ' ')}
+                    </Text>
+                    <Text style={styles.mlRowConf}>
+                      {(item.confidence * 100).toFixed(1)}%
+                    </Text>
+                  </View>
+                ))}
+
+                <Text style={[typography.hint, { marginTop: spacing.sm }]}>
+                  Herb name was auto-filled — you may edit it above.
+                </Text>
+              </>
+            )}
+          </View>
+        )}
+
         <View style={{ marginBottom: spacing.md }}>
           <Text style={typography.label}>SOURCE TYPE</Text>
           <SegmentedChips options={SOURCE_TYPES} value={form.sourceType} onChange={set('sourceType')} />
@@ -399,4 +484,84 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   submitText: { color: '#fff', fontWeight: '700', fontSize: 15 },
+
+  // ---- ML suggestion card ----
+  mlCard: {
+    backgroundColor: colors.chipBg,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.primary + '33',
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  mlHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
+  mlLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    color: colors.primary,
+  },
+  mlPlantName: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: colors.primaryDark,
+    marginTop: 2,
+    marginBottom: spacing.xs,
+  },
+  mlConfidenceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  mlBarTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: colors.border,
+    borderRadius: radius.pill,
+    overflow: 'hidden',
+  },
+  mlBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+  },
+  mlConfidenceText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+    width: 44,
+    textAlign: 'right',
+  },
+  mlDivider: {
+    height: 1,
+    backgroundColor: colors.border,
+    marginVertical: spacing.sm,
+  },
+  mlRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  mlRowRank: {
+    width: 20,
+    fontSize: 12,
+    color: colors.textMuted,
+    fontWeight: '600',
+  },
+  mlRowName: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+  },
+  mlRowConf: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.textMuted,
+  },
 });
