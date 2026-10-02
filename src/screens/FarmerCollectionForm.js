@@ -2,11 +2,11 @@
 //
 // Stage 1 of HerbChain custody chain: Farmer / Wild Collector.
 // Captures the essential origin data for a batch before it is
-// minted as an NFT: what was collected, by whom, where, when,
+// registered for review: what was collected, by whom, where, when,
 // how much, and photographic proof.
 
-import React, { useState, useCallback } from 'react';
-import { submitHerbBatch } from '../services/herbBatchService';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import { submitHerbBatch, releasePreparedHarvest } from '../services/herbBatchService';
 import { classifyPlant } from '../services/plantClassifier';
 import {
   View,
@@ -21,7 +21,15 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import DateTimePicker from '@react-native-community/datetimepicker';
+
+let DateTimePicker = null;
+if (Platform.OS !== 'web') {
+  try {
+    DateTimePicker = require('@react-native-community/datetimepicker').default || require('@react-native-community/datetimepicker');
+  } catch (e) {
+    console.warn('DateTimePicker load warning:', e);
+  }
+}
 
 import FormField from '../components/FormField';
 import SegmentedChips from '../components/SegmentedChips';
@@ -32,7 +40,7 @@ import { colors, spacing, radius, typography } from '../theme/theme';
 const SOURCE_TYPES = ['Cultivated', 'Wild-collected'];
 const HARVEST_METHODS = ['Hand-picked', 'Cut/Pruned', 'Uprooted', 'Bark stripped', 'Other'];
 const PLANT_PARTS = ['Root', 'Leaf', 'Bark', 'Flower', 'Fruit/Seed', 'Whole plant', 'Rhizome', 'Stem'];
-const UNITS = ['kg', 'g', 'bundles'];
+const UNITS = ['kg', 'g'];
 
 // Simple client-side batch ID generator: FARMER-YYYYMMDD-XXXX
 // Final ID is authoritative once confirmed by the chain/backend.
@@ -41,13 +49,13 @@ function generateBatchId() {
   const stamp = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(
     d.getDate()
   ).padStart(2, '0')}`;
-  const rand = Math.floor(1000 + Math.random() * 9000);
-  return `HC-${stamp}-${rand}`;
+  return `HC-${stamp}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,12)}`;
 }
 
 const initialState = {
   batchId: generateBatchId(),
   herbName: '',
+  originRegion: '',
   plantPart: PLANT_PARTS[0],
   collectionDate: new Date(),
   location: null,
@@ -61,8 +69,12 @@ const initialState = {
   sourceType: SOURCE_TYPES[0],
 };
 
-export default function FarmerCollectionForm({ onSubmit }) {
-  const [form, setForm] = useState(initialState);
+export default function FarmerCollectionForm({ onSubmit, userId }) {
+  const [form, setForm] = useState(() => ({ ...initialState, collectionDate: new Date(), batchId: generateBatchId() }));
+  const [step, setStep] = useState(0);
+  const [showReceipt, setShowReceipt] = useState(false);
+  const scroll = useRef(null);
+  useEffect(() => { scroll.current?.scrollTo({ y: 0, animated: false }); }, [step]);
   const [errors, setErrors] = useState({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
@@ -71,6 +83,18 @@ export default function FarmerCollectionForm({ onSubmit }) {
   const [submitting, setSubmitting] = useState(false);
   const [mlPrediction, setMlPrediction] = useState(null);
   const [mlLoading, setMlLoading] = useState(false);
+  const mlRequest = useRef(0);
+  const snapshot = useRef(null);
+  const sending = useRef(false);
+  const [locked, setLocked] = useState(false);
+  const [receipt, setReceipt] = useState(null);
+  const [submissionMessage, setSubmissionMessage] = useState('');
+  const resetEntry = () => {
+    releasePreparedHarvest(userId, form.batchId);
+    snapshot.current = null; mlRequest.current++;
+    setForm({ ...initialState, collectionDate: new Date(), batchId: generateBatchId() });
+    setMlPrediction(null); setMlLoading(false); setErrors({}); setReceipt(null); setLocked(false); setSubmissionMessage(''); setStep(0); setShowReceipt(false);
+  };
 
   const set = (key) => (value) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -132,6 +156,7 @@ export default function FarmerCollectionForm({ onSubmit }) {
 
     if (!result.canceled && result.assets?.length) {
       const uri = result.assets[0].uri;
+      const request = ++mlRequest.current;
       setForm((f) => ({ ...f, photos: [...f.photos, uri] }));
 
       // Run ML classification on the newly added photo.
@@ -139,7 +164,8 @@ export default function FarmerCollectionForm({ onSubmit }) {
       setMlPrediction(null);
       try {
         const pred = await classifyPlant(uri);
-        setMlPrediction(pred);
+        if (request !== mlRequest.current) return;
+        setMlPrediction({ ...pred, sourceUri: uri, modelVersion: 'sha256:328589201306d7e70ba5e288f5b78fac7aef248de5fcbf43ad24297c588ac322' });
         // Auto-fill herb name only when the field is still empty.
         setForm((f) => ({
           ...f,
@@ -150,40 +176,50 @@ export default function FarmerCollectionForm({ onSubmit }) {
       } catch (e) {
         console.warn('ML classification error (non-fatal):', e.message);
       } finally {
-        setMlLoading(false);
+        if (request === mlRequest.current) setMlLoading(false);
       }
     }
   };
 
-  const removePhoto = (idx) =>
+  const removePhoto = (idx) => {
+    mlRequest.current++; setMlPrediction(null); setMlLoading(false);
     setForm((f) => ({ ...f, photos: f.photos.filter((_, i) => i !== idx) }));
+  };
 
   // ---- Validation ----
-  const validate = () => {
+  const validate = (fields = null) => {
     const e = {};
     if (!form.herbName.trim()) e.herbName = 'Herb name is required';
-    if (!form.quantity.trim() || isNaN(Number(form.quantity)))
-      e.quantity = 'Enter a valid quantity';
+    if (!form.originRegion.trim()) e.originRegion = 'Enter district and state';
+    if (!form.quantity.trim() || !Number.isFinite(Number(form.quantity)) || Number(form.quantity) <= 0)
+      e.quantity = 'Enter a positive quantity';
+    if (!Number.isSafeInteger(Number(form.quantity) * (form.unit === 'kg' ? 1000 : 1))) e.quantity = 'Quantity must equal a whole number of grams';
     if (!form.collectorName.trim() && !form.collectorId.trim())
       e.collectorName = 'Provide collector name or ID';
     if (!form.location) e.location = 'GPS location must be captured';
     if (form.photos.length === 0) e.photos = 'At least one photo is required';
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    const visible = fields ? Object.fromEntries(Object.entries(e).filter(([key]) => fields.includes(key))) : e;
+    setErrors(visible);
+    return Object.keys(visible).length === 0;
   };
 
   const handleSubmit = async () => {
-    if (!validate()) {
+    if (sending.current || mlLoading) return;
+    if (!snapshot.current && !validate()) {
       Alert.alert('Missing information', 'Please fix the highlighted fields.');
       return;
     }
+    sending.current = true;
     setSubmitting(true);
+    setLocked(true);
+    setSubmissionMessage('Uploading evidence and checking blockchain registration…');
 
     // Shape of the record appended to the batch at this stage.
-    const record = {
+    const record = snapshot.current || {
       stage: 'FARMER_COLLECTION',
       batchId: form.batchId,
       herbName: form.herbName.trim(),
+      originRegion: form.originRegion.trim(),
       plantPart: form.plantPart,
       collectionTimestamp: form.collectionDate.toISOString(),
       location: form.location,
@@ -197,33 +233,36 @@ export default function FarmerCollectionForm({ onSubmit }) {
       // ML identification result for audit trail (null if classification failed).
       mlPrediction: mlPrediction ?? null,
     };
+    snapshot.current = record;
 
     try {
       const saved = await submitHerbBatch(record);
+      setReceipt(saved); setSubmissionMessage(saved.message);
 
       // Notify parent (App.js) if a callback was provided.
       if (onSubmit) onSubmit(saved);
 
       Alert.alert(
-        '✅ Harvest Recorded',
-        `Batch ${form.batchId} has been saved to the database.\n\nThis will be minted as an NFT once verified.`,
-        [
+        saved.committed ? 'Harvest recorded' : 'Waiting for confirmation',
+        saved.committed ? 'Your harvest is recorded. An independent review is needed before it can move forward. You can follow it in My harvests.' : saved.message,
+        saved.committed ? [
           {
             text: 'New Entry',
-            onPress: () =>
-              setForm({ ...initialState, batchId: generateBatchId() }),
+            onPress: resetEntry,
           },
           { text: 'OK' },
-        ]
+        ] : [{ text: 'OK' }]
       );
     } catch (err) {
       console.error('Submit error:', err);
+      setSubmissionMessage(`${err.message}. Your original submission is kept for retry while this screen stays open.`);
       Alert.alert(
         '❌ Submission Failed',
         err.message || 'An unexpected error occurred. Please try again.'
       );
     } finally {
       setSubmitting(false);
+      sending.current = false;
     }
   };
 
@@ -232,110 +271,23 @@ export default function FarmerCollectionForm({ onSubmit }) {
       style={{ flex: 1, backgroundColor: colors.bg }}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={typography.h1}>New Harvest Entry</Text>
-        <Text style={[typography.hint, { marginBottom: spacing.lg }]}>
-          Stage 1 · Farmer / Wild Collector
-        </Text>
-
-        {/* Batch ID */}
-        <View style={styles.batchCard}>
-          <Text style={typography.label}>BATCH ID</Text>
-          <Text style={styles.batchId}>{form.batchId}</Text>
-          <Text style={typography.hint}>Auto-generated · confirmed on-chain after submission</Text>
+      {locked && <View style={{ padding: 16, backgroundColor: '#e2eddf' }}>
+        <Text accessibilityRole="alert">{submissionMessage}</Text>
+        {!!receipt?.batchId && <TouchableOpacity accessibilityRole="button" style={styles.backBtn} onPress={()=>setShowReceipt(!showReceipt)}><Text>{showReceipt?'Hide record details':'View batch number & receipt'}</Text></TouchableOpacity>}
+        {showReceipt && <><Text selectable>{receipt?.batchId}</Text><Text selectable>Transaction: {receipt?.transactionId || 'Awaiting confirmation'}</Text></>}
+        {!submitting && <TouchableOpacity style={{ paddingVertical: 14 }} onPress={receipt?.committed ? resetEntry : handleSubmit}>
+          <Text style={{ fontWeight: '700' }}>{receipt?.committed ? 'New harvest' : 'Retry original submission'}</Text>
+        </TouchableOpacity>}
+      </View>}
+      <ScrollView ref={scroll} contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" pointerEvents={locked ? 'none' : 'auto'}>
+        <Text style={typography.h1}>Record your harvest</Text>
+        <Text style={styles.intro}>A batch is a group of herbs collected together. Record each harvest separately.</Text>
+        <View style={styles.progress} accessibilityLabel={'Step '+(step+1)+' of 3'}>
+          {['Herb & photos','Harvest details','Check & send'].map((label,index)=><View key={label} style={[styles.step,step===index&&styles.activeStep]}><Text style={[styles.stepText,step===index&&styles.activeStepText]}>{index+1}. {label}</Text></View>)}
         </View>
-
-        <FormField
-          label="Herb name"
-          required
-          placeholder="e.g. Ashwagandha"
-          value={form.herbName}
-          onChangeText={set('herbName')}
-          error={errors.herbName}
-        />
-
-        <View style={{ marginBottom: spacing.md }}>
-          <Text style={typography.label}>PART COLLECTED</Text>
-          <SegmentedChips options={PLANT_PARTS} value={form.plantPart} onChange={set('plantPart')} />
-        </View>
-
-        {/* Date & time */}
-        <View style={{ marginBottom: spacing.md }}>
-          <Text style={typography.label}>COLLECTION DATE & TIME</Text>
-          <View style={styles.row}>
-            <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)}>
-              <Text style={styles.dateBtnText}>{form.collectionDate.toDateString()}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.dateBtn} onPress={() => setShowTimePicker(true)}>
-              <Text style={styles.dateBtnText}>
-                {form.collectionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </TouchableOpacity>
-          </View>
-          {showDatePicker && (
-            <DateTimePicker
-              value={form.collectionDate}
-              mode="date"
-              maximumDate={new Date()}
-              onChange={(evt, date) => {
-                setShowDatePicker(false);
-                if (date) set('collectionDate')(date);
-              }}
-            />
-          )}
-          {showTimePicker && (
-            <DateTimePicker
-              value={form.collectionDate}
-              mode="time"
-              onChange={(evt, date) => {
-                setShowTimePicker(false);
-                if (date) set('collectionDate')(date);
-              }}
-            />
-          )}
-        </View>
-
-        <LocationCard
-          location={form.location}
-          loading={locLoading}
-          error={errors.location || locError}
-          onCapture={captureLocation}
-        />
-
-        {/* Quantity */}
-        <View style={{ marginBottom: spacing.md }}>
-          <Text style={typography.label}>
-            QUANTITY COLLECTED <Text style={{ color: colors.error }}>*</Text>
-          </Text>
-          <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: spacing.sm }}>
-              <FormField
-                placeholder="0.0"
-                keyboardType="decimal-pad"
-                value={form.quantity}
-                onChangeText={set('quantity')}
-                error={errors.quantity}
-              />
-            </View>
-            <SegmentedChips options={UNITS} value={form.unit} onChange={set('unit')} />
-          </View>
-        </View>
-
-        <FormField
-          label="Collector name"
-          placeholder="Full name"
-          value={form.collectorName}
-          onChangeText={set('collectorName')}
-          error={errors.collectorName}
-        />
-        <FormField
-          label="Collector ID"
-          hint="Farmer registration / Aadhaar-linked ID, if available"
-          placeholder="Optional"
-          value={form.collectorId}
-          onChangeText={set('collectorId')}
-        />
-
+        {step===0 && <>
+          <Text style={styles.sectionTitle}>What did you collect?</Text>
+          <Text style={styles.intro}>Add a clear photo. Check the suggested herb name and correct it if needed.</Text>
         <PhotoPicker
           photos={form.photos}
           onAdd={addPhoto}
@@ -347,7 +299,7 @@ export default function FarmerCollectionForm({ onSubmit }) {
         {(mlLoading || mlPrediction) && (
           <View style={styles.mlCard}>
             <View style={styles.mlHeader}>
-              <Text style={styles.mlLabel}>🌿 ML IDENTIFICATION</Text>
+              <Text style={styles.mlLabel}>PHOTO SUGGESTION</Text>
               {mlLoading && (
                 <ActivityIndicator size="small" color={colors.primary} />
               )}
@@ -396,12 +348,157 @@ export default function FarmerCollectionForm({ onSubmit }) {
                 ))}
 
                 <Text style={[typography.hint, { marginTop: spacing.sm }]}>
-                  Herb name was auto-filled — you may edit it above.
+                  This is a photo suggestion, not a verified identification. Check and edit the herb name below.
                 </Text>
               </>
             )}
           </View>
         )}
+
+        <FormField
+          label="Herb name"
+          maxLength={160}
+          required
+          placeholder="e.g. Tulsi / Ocimum tenuiflorum"
+          value={form.herbName}
+          onChangeText={set('herbName')}
+          error={errors.herbName}
+        />
+        <View style={{ marginBottom: spacing.md }}>
+          <Text style={typography.label}>PART COLLECTED</Text>
+          <SegmentedChips options={PLANT_PARTS} value={form.plantPart} onChange={set('plantPart')} />
+        </View>
+
+        </>}
+        {step===1 && <>
+          <Text style={styles.sectionTitle}>Where and how much?</Text>
+          <Text style={styles.intro}>Have the herbs and their weight ready. Fields marked * are required.</Text>
+        <FormField label="District and state" maxLength={160} required placeholder="e.g. Pune, Maharashtra" value={form.originRegion} onChangeText={set('originRegion')} error={errors.originRegion} hint="This coarse origin will be visible in the product history. Exact GPS stays private." />
+
+        {/* Date & time */}
+        <View style={{ marginBottom: spacing.md }}>
+          <Text style={typography.label}>COLLECTION DATE & TIME</Text>
+          <View style={styles.row}>
+            <TouchableOpacity style={styles.dateBtn} onPress={() => setShowDatePicker(true)}>
+              <Text style={styles.dateBtnText}>{form.collectionDate.toDateString()}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.dateBtn} onPress={() => setShowTimePicker(true)}>
+              <Text style={styles.dateBtnText}>
+                {form.collectionDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {showDatePicker && (
+            Platform.OS === 'web' ? (
+              <View style={{ marginTop: spacing.xs }}>
+                <input
+                  type="date"
+                  value={form.collectionDate.toISOString().split('T')[0]}
+                  onChange={(e) => {
+                    setShowDatePicker(false);
+                    if (e.target.value) {
+                      const parts = e.target.value.split('-');
+                      const updated = new Date(form.collectionDate);
+                      updated.setFullYear(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+                      set('collectionDate')(updated);
+                    }
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: `1px solid ${colors.border}`,
+                    fontSize: '14px',
+                  }}
+                />
+              </View>
+            ) : DateTimePicker ? (
+              <DateTimePicker
+                value={form.collectionDate}
+                mode="date"
+                maximumDate={new Date()}
+                onChange={(evt, date) => {
+                  setShowDatePicker(false);
+                  if (date) set('collectionDate')(date);
+                }}
+              />
+            ) : null
+          )}
+          {showTimePicker && (
+            Platform.OS === 'web' ? (
+              <View style={{ marginTop: spacing.xs }}>
+                <input
+                  type="time"
+                  value={form.collectionDate.toTimeString().slice(0, 5)}
+                  onChange={(e) => {
+                    setShowTimePicker(false);
+                    if (e.target.value) {
+                      const [h, m] = e.target.value.split(':').map(Number);
+                      const updated = new Date(form.collectionDate);
+                      updated.setHours(h, m);
+                      set('collectionDate')(updated);
+                    }
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: `1px solid ${colors.border}`,
+                    fontSize: '14px',
+                  }}
+                />
+              </View>
+            ) : DateTimePicker ? (
+              <DateTimePicker
+                value={form.collectionDate}
+                mode="time"
+                onChange={(evt, date) => {
+                  setShowTimePicker(false);
+                  if (date) set('collectionDate')(date);
+                }}
+              />
+            ) : null
+          )}
+        </View>
+
+        <LocationCard
+          location={form.location}
+          loading={locLoading}
+          error={errors.location || locError}
+          onCapture={captureLocation}
+        />
+
+        {/* Quantity */}
+        <View style={{ marginBottom: spacing.md }}>
+          <Text style={typography.label}>
+            QUANTITY COLLECTED <Text style={{ color: colors.error }}>*</Text>
+          </Text>
+          <View style={styles.row}>
+            <View style={{ flex: 1, marginRight: spacing.sm }}>
+              <FormField
+                placeholder="0.0"
+                keyboardType="decimal-pad"
+                value={form.quantity}
+                onChangeText={set('quantity')}
+                error={errors.quantity}
+              />
+            </View>
+            <SegmentedChips options={UNITS} value={form.unit} onChange={set('unit')} />
+          </View>
+        </View>
+
+        <FormField
+          label="Your name"
+          placeholder="Full name"
+          value={form.collectorName}
+          onChangeText={set('collectorName')}
+          error={errors.collectorName}
+        />
+        <FormField
+          label="Farm reference (optional)"
+          hint="Your cooperative or farm reference, if available. Do not enter an Aadhaar number."
+          placeholder="Optional"
+          value={form.collectorId}
+          onChangeText={set('collectorId')}
+        />
 
         <View style={{ marginBottom: spacing.md }}>
           <Text style={typography.label}>SOURCE TYPE</Text>
@@ -423,27 +520,57 @@ export default function FarmerCollectionForm({ onSubmit }) {
           numberOfLines={3}
         />
 
+        </>}
+        {step===2 && <View style={styles.reviewCard}>
+          <Text style={styles.sectionTitle}>Check before you send</Text>
+          <Text style={styles.reviewValue}>{form.herbName}</Text>
+          <Text style={styles.reviewLine}>{form.quantity} {form.unit} · {form.plantPart}</Text>
+          <Text style={styles.reviewLine}>{form.originRegion}</Text>
+          <Text style={styles.reviewLine}>Collected {form.collectionDate.toLocaleString()}</Text>
+          <Text style={styles.reviewLine}>Farmer: {form.collectorName || form.collectorId}</Text>
+          <Text style={styles.reviewLine}>{form.photos.length} photo(s) · {form.location ? 'Farm location captured' : 'Farm location missing'}</Text>
+          <Text style={styles.reviewLine}>{form.sourceType} · {form.harvestMethod}</Text>
+          {!!form.qualityNotes && <Text style={styles.reviewLine}>Notes: {form.qualityNotes}</Text>}
+          <Text style={styles.intro}>After you send, an independent reviewer must check this harvest before it can move forward.</Text>
+        </View>}
+        {step<2 && <TouchableOpacity accessibilityRole="button" disabled={mlLoading} style={[styles.submitBtn,mlLoading&&{opacity:0.5}]} onPress={()=>{
+          const fields=step===0?['herbName','photos']:['originRegion','quantity','collectorName','location'];
+          if(validate(fields))setStep(step+1);else Alert.alert('A few details are missing','Please check the highlighted fields before continuing.');
+        }}><Text style={styles.submitText}>{mlLoading?'Checking photo…':step===0?'Continue to harvest details':'Check your harvest'}</Text></TouchableOpacity>}
+        {step>0 && <TouchableOpacity accessibilityRole="button" style={styles.backBtn} onPress={()=>setStep(step-1)}><Text style={styles.backText}>Back — edit details</Text></TouchableOpacity>}
+        {step===2 && <>
         <TouchableOpacity
           style={[styles.submitBtn, submitting && { opacity: 0.7 }]}
           onPress={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || mlLoading}
           activeOpacity={0.85}
         >
           {submitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitText}>Submit Harvest Record</Text>
+            <Text style={styles.submitText}>Send harvest for review</Text>
           )}
         </TouchableOpacity>
         <Text style={[typography.hint, { textAlign: 'center', marginTop: spacing.sm }]}>
-          This will mint a new batch NFT once verified.
+          Your photos and harvest details will be sent for independent review.
         </Text>
+        </>}
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  intro:{fontSize:15,lineHeight:23,color:colors.textMuted,marginVertical:12},
+  progress:{flexDirection:'row',gap:6,marginVertical:16},
+  step:{flex:1,padding:10,borderRadius:10,backgroundColor:colors.chipBg},
+  activeStep:{backgroundColor:colors.primaryDark},
+  stepText:{fontSize:13,lineHeight:19,color:colors.text},activeStepText:{color:'#fff',fontWeight:'700'},
+  sectionTitle:{fontSize:21,fontWeight:'700',color:colors.text,marginBottom:8},
+  reviewCard:{padding:20,backgroundColor:colors.surface,borderRadius:16,borderWidth:1,borderColor:colors.border},
+  reviewValue:{fontSize:23,fontWeight:'700',color:colors.primaryDark,marginVertical:10},
+  reviewLine:{fontSize:16,lineHeight:25,marginVertical:5,color:colors.text},
+  backBtn:{minHeight:48,paddingVertical:14,alignItems:'center'},backText:{fontSize:16,color:colors.primaryDark,fontWeight:'600'},
   container: {
     padding: spacing.lg,
     paddingBottom: spacing.xl * 2,

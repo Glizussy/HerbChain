@@ -1,0 +1,20 @@
+{
+  "SUPABASE_USER_UUID": {
+    "role": "collector",
+    "mspId": "Org1MSP",
+    "certificate": "/absolute/path/to/collector/msp/signcerts/cert.pem",
+    "privateKey": "/absolute/path/to/collector/msp/keystore/KEY_FILE",
+    "tlsCertificate": "/absolute/path/to/peer0.org1.example.com/tls/ca.crt",
+    "endpoint": "localhost:7051",
+    "hostOverride": "peer0.org1.example.com"
+  },
+  "consumer-reader": {
+    "role": "reader",
+    "mspId": "Org2MSP",
+    "certificate": "/absolute/path/to/reader/msp/signcerts/cert.pem",
+    "privateKey": "/absolute/path/to/reader/msp/keystore/KEY_FILE",
+    "tlsCertificate": "/absolute/path/to/peer0.org2.example.com/tls/ca.crt",
+    "endpoint": "localhost:9051",
+    "hostOverride": "peer0.org2.example.com"
+  }
+}

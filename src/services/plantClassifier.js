@@ -1,7 +1,16 @@
-import { loadTensorflowModel } from "react-native-fast-tflite";
+import { Platform } from 'react-native';
 import * as ImageManipulator from "expo-image-manipulator";
 import jpeg from "jpeg-js";
 import { Asset } from "expo-asset";
+
+let loadTensorflowModel = null;
+if (Platform.OS !== 'web') {
+  try {
+    loadTensorflowModel = require('react-native-fast-tflite').loadTensorflowModel;
+  } catch (e) {
+    console.warn('react-native-fast-tflite not available:', e);
+  }
+}
 
 // ============================================================
 // Class order MUST match train_dataset.class_names from Colab
@@ -167,6 +176,10 @@ function getTopPredictions(probabilities) {
 // ============================================================
 
 export async function classifyPlant(imageUri) {
+  if (Platform.OS === 'web' || !loadTensorflowModel) {
+    throw new Error("Plant identification is unavailable on this platform. This harvest requires manual review.");
+  }
+
   try {
     const plantModel = await loadPlantModel();
 

@@ -1,0 +1,12 @@
+'use strict';
+const gateway=require('./gateway');
+const archive=require('./evidence-archive').archiveFromEnvironment();
+const cloudEvidence=require('./cloud-evidence').cloudReaderFromEnvironment(archive);
+if(!archive||!cloudEvidence||process.env.HERBCHAIN_MEMBERSHIP_MODE!=='supabase')throw Error('Worker requires memberships, archive writes and cloud reads');
+const repository=require('./transaction-queue').createTransactionQueue({url:process.env.SUPABASE_URL,key:process.env.SUPABASE_SERVICE_ROLE_KEY});
+const actions=require('./queued-actions').createQueuedActions({repository,archive,cloudEvidence,contractFor:gateway.contractFor,actorFor:gateway.dashboardActor,prepareDirectory:gateway.prepareDirectory,directoryFor:gateway.custodyDirectory});
+const lotActions=require('./lot-actions').createLotActions({repository,archive,actions,actorFor:gateway.dashboardActor});
+const originalPreflight=actions.preflight;actions.preflight=j=>['SPLIT','MERGE'].includes(j.operation)?lotActions.preflight(j):originalPreflight(j);
+const worker=require('./transaction-worker').createTransactionWorker({repository,actions,...gateway});
+let stopping=false;process.on('SIGINT',()=>{stopping=true});process.on('SIGTERM',()=>{stopping=true});
+(async()=>{console.log('Transaction worker started. Unknown outcomes are reconciled, never blindly resubmitted.');while(!stopping){try{await worker.tick();}catch{console.error('Worker dependencies unavailable; retrying.');}if(!stopping)await new Promise(r=>setTimeout(r,3000));}gateway.close();})().catch(()=>{gateway.close();process.exitCode=1});

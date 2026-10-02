@@ -1,2 +1,19 @@
 node_modules/
 .expo/
+.env
+.env.*
+!.env.example
+server/identities.local.json
+blockchain/identities/
+
+# Local signing material, participant mappings and generated evidence
+*.keystore
+*.jks
+android-build.log
+participant-accounts.json
+participant-accounts.local.json
+*.local.sql
+harvest-data/
+demo-evidence/
+farmer-api-*/
+demo-viewer-*/

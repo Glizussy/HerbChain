@@ -1,121 +1,56 @@
-// src/services/herbBatchService.js
-//
-// All Supabase interactions for the Farmer Collection stage.
-// Two responsibilities:
-//   1. uploadPhoto      — uploads a local image to Supabase Storage, returns public URL
-//   2. submitHerbBatch  — uploads photos then inserts the batch row into herb_batches
-
+import * as ImageManipulator from 'expo-image-manipulator';
+import * as FileSystem from 'expo-file-system/legacy';
+import { Platform } from 'react-native';
+import { createHarvestOutbox } from './harvestOutbox';
 import { supabase } from '../lib/supabaseClient';
 
-const STORAGE_BUCKET = 'herb-photos';
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-/**
- * Uploads a single local image URI to Supabase Storage.
- *
- * Uses React Native's native FormData — appending { uri, name, type } tells
- * RN's OS-level networking to read and stream the file directly.
- * This is the most reliable approach in Expo without extra dependencies.
- *
- * @param {string} localUri  - A local file URI from expo-image-picker (file:///...)
- * @param {string} batchId   - Used to namespace the file inside the bucket
- * @returns {Promise<string>} Public URL of the uploaded photo
- */
-export async function uploadPhoto(localUri, batchId) {
-  const filename = localUri.split('/').pop();
-  const storagePath = `${batchId}/${Date.now()}-${filename}`;
-
-  const ext = filename.split('.').pop()?.toLowerCase();
-  const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg';
-
-  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${STORAGE_BUCKET}/${storagePath}`;
-
-  // React Native's FormData treats { uri, name, type } as a native file reference.
-  // The OS networking layer reads the file:// URI and streams it — no JS file reading needed.
-  const formData = new FormData();
-  formData.append('file', {
-    uri: localUri,
-    name: filename,
-    type: mimeType,
-  });
-
-  // Do NOT set Content-Type manually — FormData sets it with the correct multipart boundary.
-  const response = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      apikey: SUPABASE_ANON_KEY,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    throw new Error(`Photo upload failed: ${errorBody.message || `HTTP ${response.status}`}`);
-  }
-
-  // Return the public URL for storage in the database row.
-  const { data } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(storagePath);
-  return data.publicUrl;
-}
-
-/**
- * Submits a full herb batch record to Supabase.
- * Handles photo uploads internally, then inserts the row.
- *
- * @param {object} record - The record object built by FarmerCollectionForm.handleSubmit
- * @returns {Promise<object>} The inserted database row
- */
+// Native uploads are saved before network submission. Web retains session-only behavior.
+const prepared = new Map();
+const outbox = createHarvestOutbox(FileSystem, FileSystem.documentDirectory);
+async function activeSession() { const {data:{session},error}=await supabase.auth.getSession();if(error||!session)throw new Error('Sign in before submitting a harvest.');return session; }
+export async function listPendingHarvests() { const session=await activeSession();return Platform.OS==='web'?{entries:[],warnings:['Upload recovery across restarts is available in the Android app.']}:outbox.list(session.user.id); }
+export async function retryPendingHarvest(clientId) { const session=await activeSession();const saved=await outbox.read(session.user.id,clientId);if(!saved)throw new Error('Saved harvest not found for this account.');return sendPrepared(session,saved.payload); }
 export async function submitHerbBatch(record) {
-  // 1. Upload every photo and collect public URLs.
-  let photoUrls = [];
-  if (record.photos && record.photos.length > 0) {
-    const uploads = record.photos.map((uri) => uploadPhoto(uri, record.batchId));
-    photoUrls = await Promise.all(uploads);
+  const base = process.env.EXPO_PUBLIC_HERBCHAIN_API_URL?.replace(/\/$/, '');
+  if (!base) throw new Error('Set EXPO_PUBLIC_HERBCHAIN_API_URL to the backend address reachable from this phone.');
+  const { data: { session }, error } = await supabase.auth.getSession();
+  if (error || !session) throw new Error('Sign in before submitting a harvest.');
+  const key = `${session.user.id}:${record.batchId}`;
+  let payload = prepared.get(key);
+  if(!payload && Platform.OS!=='web') payload=(await outbox.read(session.user.id,record.batchId))?.payload;
+  if (!payload) {
+    const photos = [];
+    for (const uri of record.photos) {
+      const image = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1280 } }], {
+        compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true,
+      });
+      if (!image.base64 || image.base64.length > 4194304) throw new Error('Photo is too large. Choose a smaller photo.');
+      photos.push({ base64: image.base64 });
+    }
+    const prediction = record.mlPrediction;
+    const photoIndex = prediction ? record.photos.indexOf(prediction.sourceUri) : -1;
+    payload = { ...record, photos, mlPrediction: photoIndex >= 0 ? {
+      plant: prediction.plant, confidence: prediction.confidence, modelVersion: prediction.modelVersion, photoIndex,
+    } : null };
   }
-
-  // 2. Flatten the record into the herb_batches table schema.
-  const row = {
-    batch_id: record.batchId,
-    stage: record.stage,
-    herb_name: record.herbName,
-    plant_part: record.plantPart,
-    collection_timestamp: record.collectionTimestamp,
-
-    // Location stored as flat columns for easy querying.
-    latitude: record.location?.latitude ?? null,
-    longitude: record.location?.longitude ?? null,
-    location_accuracy: record.location?.accuracy ?? null,
-    location_captured_at: record.location?.capturedAt ?? null,
-
-    quantity_value: record.quantity.value,
-    quantity_unit: record.quantity.unit,
-
-    collector_name: record.collector.name || null,
-    collector_id: record.collector.id || null,
-
-    photo_urls: photoUrls,
-    quality_notes: record.qualityNotes || null,
-    harvest_method: record.harvestMethod,
-    source_type: record.sourceType,
-    recorded_at: record.recordedAt,
-
-    // ML-generated plant identification result.
-    // Stored as JSONB: { plant, confidence, top3 }.
-    // Requires an ml_prediction jsonb column in herb_batches.
-    ml_prediction: record.mlPrediction ?? null,
-  };
-
-  const { data, error } = await supabase
-    .from('herb_batches')
-    .insert(row)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Database insert failed: ${error.message}`);
-  }
-
-  return data;
+  if(Platform.OS!=='web')payload=(await outbox.save(session.user.id,payload)).payload;
+  prepared.set(key,payload);
+  return sendPrepared(session,payload);
 }
+async function sendPrepared(session,payload) {
+  const base=process.env.EXPO_PUBLIC_HERBCHAIN_API_URL?.replace(/\/$/,'');
+  if(!base)throw new Error('Set EXPO_PUBLIC_HERBCHAIN_API_URL to the backend address reachable from this phone.');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120000);
+  try {
+    const response = await fetch(`${base}/api/harvests`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify(payload), signal: controller.signal,
+    });
+    const result = await response.json().catch(() => ({ error: `Backend returned HTTP ${response.status}` }));
+    if (!response.ok) throw new Error(result.error || 'Harvest submission failed');
+    if(result.committed===true && Platform.OS!=='web') { try{await outbox.remove(session.user.id,payload.batchId);}catch{result.localCleanupPending=true;} }
+    return result;
+  } finally { clearTimeout(timeout); }
+}
+export function releasePreparedHarvest(userId, clientId) { prepared.delete(`${userId}:${clientId}`); }

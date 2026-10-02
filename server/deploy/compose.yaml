@@ -1,0 +1,45 @@
+# Staging template. No production network is provisioned by this file.
+x-service: &service
+  build: ..
+  env_file: runtime.env
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp:mode=1777
+  volumes:
+    - ${HERBCHAIN_IDENTITY_DIR:?Set the private identity directory}:/run/herbchain:ro
+    - api-runtime:/app/runtime
+  extra_hosts:
+    - host.docker.internal:host-gateway
+  stop_grace_period: 90s
+services:
+  api:
+    <<: *service
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3002
+      HERBCHAIN_DATA_DIR: /app/runtime
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3002/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+  worker:
+    <<: *service
+    command: ["node", "src/worker-runner.js"]
+  indexer:
+    <<: *service
+    command: ["node", "src/indexer-env.js"]
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      HERBCHAIN_DOMAIN: ${HERBCHAIN_DOMAIN:?Set the staging domain}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+volumes:
+  api-runtime:
+  caddy-data:
+  caddy-config:

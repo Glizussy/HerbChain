@@ -1,4 +1,12 @@
-# AyurSutra — HerbChain (Farmer Stage Frontend)
+# AyurSutra — HerbChain
+
+Mobile herb collection, Hyperledger Fabric traceability, and participant web portals.
+
+Start with [Changes and current run instructions](docs/CHANGES-2026-10-02.md) and the [implementation report](docs/IMPLEMENTATION-REPORT.md). These explain the implemented phases, private configuration, tests, and features still awaiting live activation. Reusable local launchers are in `scripts/`; Fabric code is in `blockchain/`, and the API, web portals, migrations and tests are in `server/`.
+
+The remaining sections below are the original farmer-stage design notes. Their proposed future work and record examples do not describe the full current implementation.
+
+## Original farmer-stage notes
 
 React Native (Expo) screen for **Stage 1: Farmer / Wild Collector** of the
 HerbChain custody chain.
@@ -10,7 +18,7 @@ npm install
 npx expo start
 ```
 
-Scan the QR with Expo Go (Android/iOS) or run `npm run android` / `npm run ios`.
+Use a native Expo development build for the TFLite integration; Expo Go cannot load the native model dependencies. See the current run instructions above.
 
 ## What's included
 
@@ -62,7 +70,7 @@ shaped for your backend:
 Wire `handleSubmit` in `App.js` to:
 1. Upload `photos` (local URIs) to your storage/IPFS.
 2. POST the record + photo hashes/URLs to your backend.
-3. Trigger NFT mint for the batch, then navigate to a confirmation screen.
+3. Register a reviewed batch through the Fabric backend, then show its committed transaction ID. See blockchain/README.md for current implementation status and setup.
 
 ## Next stages (not built yet)
 
