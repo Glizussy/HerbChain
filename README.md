@@ -2,6 +2,8 @@
 
 Mobile herb collection, Hyperledger Fabric traceability, and participant web portals.
 
+For a teammate's computer, Android phone, or Docker deployment, see [Run on another device](docs/SETUP-ANOTHER-DEVICE.md).
+
 Start with [Changes and current run instructions](docs/CHANGES-2026-10-02.md) and the [implementation report](docs/IMPLEMENTATION-REPORT.md). These explain the implemented phases, private configuration, tests, and features still awaiting live activation. Reusable local launchers are in `scripts/`; Fabric code is in `blockchain/`, and the API, web portals, migrations and tests are in `server/`.
 
 The remaining sections below are the original farmer-stage design notes. Their proposed future work and record examples do not describe the full current implementation.
