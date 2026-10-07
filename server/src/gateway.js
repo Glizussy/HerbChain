@@ -4,6 +4,14 @@ const crypto = require('node:crypto');
 const grpc = require('@grpc/grpc-js');
 const { connect, signers, hash } = require('@hyperledger/fabric-gateway');
 const identities = JSON.parse(fs.readFileSync(process.env.FABRIC_IDENTITIES_FILE, 'utf8'));
+const path=require('node:path');
+const automaticDirectory=process.env.HERBCHAIN_DATA_DIR?path.join(path.resolve(process.env.HERBCHAIN_DATA_DIR),'.onboarding/identities'):null;
+const registry=require('./identity-registry').createIdentityRegistry({identities,directory:automaticDirectory,validateCertificate:(c,bytes)=>{
+  const {ClientIdentity}=require(path.join(process.env.HERBCHAIN_ROOT||path.resolve(__dirname,'../..'),'blockchain/chaincode/node_modules/fabric-shim'));
+  const id=new ClientIdentity({getChannelID:()=> 'herbchain',getTxID:()=> 'onboarding',getCreator:()=>({mspid:c.mspId,idBytes:bytes})});
+  if(id.getAttributeValue('herbchain.role')!==c.role||id.getID()!==c.fabricIdentity)throw Error('Enrolled certificate role or identity does not match');
+}});
+registry.loadAll();
 const { createMembershipRepository, createMembershipAccess } = require('./memberships');
 const mode = process.env.HERBCHAIN_MEMBERSHIP_MODE || 'file';
 const access = createMembershipAccess({identities,mode,repository:mode==='supabase'?createMembershipRepository({url:process.env.SUPABASE_URL,key:process.env.SUPABASE_SERVICE_ROLE_KEY}):undefined});
@@ -64,4 +72,7 @@ async function commitStatusFor(uid,transactionId){
   return connections.get(uid).gateway.newCommit(signed.serializeBinary()).getStatus({deadline:Date.now()+10000});
 }
 function close() { for (const c of connections.values()) { c.gateway.close(); c.client.close(); } }
-module.exports = { commitStatusFor, contractFor, participantFor, custodyActor, custodyDirectory, lifecycleActor, dashboardActor, close, withParticipant:access.run, prepareDirectory:access.prepareDirectory };
+module.exports = { commitStatusFor, contractFor, participantFor, custodyActor, custodyDirectory, lifecycleActor, dashboardActor, close,
+  hasIdentity:registry.has,installIdentity:registry.install,
+  withParticipant:async(uid,fn,options)=>{registry.load(uid);return access.run(uid,fn,options);},
+  prepareDirectory:async()=>{registry.loadAll();return access.prepareDirectory();} };

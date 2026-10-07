@@ -6,6 +6,7 @@ const { traceAddress } = require('./labels');
 const archive = require('./evidence-archive').archiveFromEnvironment();
 const cloudEvidence = require('./cloud-evidence').cloudReaderFromEnvironment(archive);
 const { contractFor, participantFor, custodyActor, custodyDirectory, lifecycleActor, dashboardActor, close, withParticipant, prepareDirectory } = require('./gateway');
+const onboarding=require('./onboarding-runtime').onboardingFromEnvironment(require('./gateway'));
 const { createDashboardService } = require('./dashboard');
 const {createIndexRepository,createIndexedDashboard}=require('./batch-index');
 const listMode=process.env.HERBCHAIN_BATCH_LIST_MODE||'local';
@@ -49,6 +50,7 @@ async function authenticate(req) {
   if (!response.ok) throw new Error('Invalid or expired session');
   const user = await response.json();
   if (!user.id || user.id === process.env.PUBLIC_IDENTITY) throw new Error('Invalid user');
+  req.authenticatedUser=user;
   return user.id;
 }
 async function body(req, limit = 32768) {
@@ -60,8 +62,24 @@ const server = http.createServer(async (req, res) => {
   let transactionId;
   try {
     const url = new URL(req.url, 'http://localhost');
-    if (req.method === 'GET' && ['/dashboard','/dashboard.js','/batch-language.js','/workspace.css','/session-bridge.js','/labels'].includes(url.pathname)) {
-      const file = { '/workspace.css':'workspace.css', '/batch-language.js':'batch-language.js', '/dashboard':'dashboard.html', '/dashboard.js':'dashboard.js', '/session-bridge.js':'session-bridge.js', '/labels':'labels.html' }[url.pathname];
+    const workspaceFiles={'/participants':'participants.html','/participants.js':'participants.js','/dashboard':'role-workspace.html','/review':'role-workspace.html','/custody':'role-workspace.html','/operations':'role-workspace.html','/activity':'role-workspace.html','/lots':'role-workspace.html','/role-workspace.css':'role-workspace.css','/role-workspace.js':'role-workspace.js','/workspace-components.js':'workspace-components.js','/workspace-store.js':'workspace-store.js','/workspace-translations.json':'workspace-translations.json'};
+    if(req.method==='GET'&&Object.hasOwn(workspaceFiles,url.pathname)){const file=workspaceFiles[url.pathname];const type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'}[path.extname(file)];res.writeHead(200,{'Content-Type':type+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'SAMEORIGIN'});return res.end(fs.readFileSync(path.join(__dirname,'../public',file)));}
+    if(req.method==='GET'&&['/workspace-config','/app-qr.svg'].includes(url.pathname)){
+      function link(value){try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:null;}catch{return null;}}
+      const settings={downloadUrl:link(process.env.HERBCHAIN_APP_DOWNLOAD_URL),appUrl:link(process.env.HERBCHAIN_APP_OPEN_URL)};
+      if(url.pathname==='/workspace-config')return json(res,200,settings);
+      if(!settings.appUrl)return json(res,404,{error:'App link unavailable'});
+      const svg=await require('qrcode').toString(settings.appUrl,{type:'svg',errorCorrectionLevel:'M',margin:4});res.writeHead(200,{'Content-Type':'image/svg+xml','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});return res.end(svg);
+    }
+    const publicPages = { '/':'landing.html', '/scan':'scan.html', '/trace':'index.html', '/login':'auth.html', '/signup':'auth.html', '/demo':'auth.html', '/ayur.css':'ayur.css', '/ayur-i18n.js':'ayur-i18n.js', '/ayur-translations.json':'ayur-translations.json', '/ayur-public.js':'ayur-public.js', '/ayur-auth.js':'ayur-auth.js', '/ayur-signup-policy.js':'ayur-signup-policy.js', '/ayur-qr.js':'ayur-qr.js', '/herb-illustration.svg':'herb-illustration.svg', '/vendor/jsQR.js':'vendor/jsQR.js' };
+    if (req.method === 'GET' && Object.hasOwn(publicPages, url.pathname)) {
+      const file = publicPages[url.pathname];
+      const mime = {'.html':'text/html', '.css':'text/css', '.js':'application/javascript', '.json':'application/json', '.svg':'image/svg+xml'}[path.extname(file)];
+      res.writeHead(200, {'Content-Type':mime+'; charset=utf-8', 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer', 'Permissions-Policy':'camera=(self)', 'X-Frame-Options':'SAMEORIGIN'});
+      return res.end(fs.readFileSync(path.join(__dirname, '../public', file)));
+    }
+    if (req.method === 'GET' && ['/dashboard','/dashboard.js','/ayur-workspace-login.js','/ayur-recovery.js','/batch-language.js','/workspace.css','/session-bridge.js','/labels'].includes(url.pathname)) {
+      const file = { '/workspace.css':'workspace.css', '/batch-language.js':'batch-language.js', '/dashboard':'dashboard.html', '/dashboard.js':'dashboard.js', '/ayur-workspace-login.js':'ayur-workspace-login.js', '/ayur-recovery.js':'ayur-recovery.js', '/session-bridge.js':'session-bridge.js', '/labels':'labels.html' }[url.pathname];
       res.writeHead(200, { 'Content-Type': file.endsWith('.css') ? 'text/css; charset=utf-8' : file.endsWith('.js') ? 'application/javascript; charset=utf-8' : 'text/html; charset=utf-8', 'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff', 'Referrer-Policy':'no-referrer', 'X-Frame-Options':'SAMEORIGIN' });
       return res.end(fs.readFileSync(path.join(__dirname,'../public',file)));
     }
@@ -86,10 +104,6 @@ const server = http.createServer(async (req, res) => {
     }
     if (req.method === 'GET' && url.pathname === '/review-config') return json(res, 200, { url: process.env.SUPABASE_URL, anonKey: process.env.SUPABASE_ANON_KEY });
     if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { api: 'ready', fabric: 'not checked' });
-    if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/trace')) {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'X-Content-Type-Options': 'nosniff' });
-      return res.end(fs.readFileSync(path.join(__dirname, '../public/index.html')));
-    }
     const publicMatch = url.pathname.match(/^\/public\/batches\/([A-Za-z0-9_-]{1,80})(\/qr\.svg)?$/);
     if (req.method === 'GET' && publicMatch) {
       const bytes = await contractFor(process.env.PUBLIC_IDENTITY).evaluateTransaction('GetProvenance', publicMatch[1]);
@@ -109,7 +123,23 @@ const server = http.createServer(async (req, res) => {
           outcome: e.type === 'LAB_TESTED' ? e.details.outcome : undefined })) });
     }
     const uid = await authenticate(req);
+    if(req.method==='POST'&&url.pathname==='/api/onboarding'){
+      if(!onboarding)return json(res,200,{state:'disabled'});
+      // A verified session supplies the UID and requested role. The browser cannot nominate another account.
+      return json(res,200,await onboarding.request(req.authenticatedUser));
+    }
+    if(url.pathname==='/api/admin/onboarding'||/^\/api\/admin\/onboarding\/[a-f0-9-]{36}\/(approve|reject)$/.test(url.pathname)){
+      if(!onboarding)return json(res,503,{error:'Participant onboarding is not enabled'});
+      return await withParticipant(uid,async()=>{
+        if(req.method==='GET'&&url.pathname==='/api/admin/onboarding')return json(res,200,{requests:await onboarding.list(uid)});
+        const match=url.pathname.match(/^\/api\/admin\/onboarding\/([a-f0-9-]{36})\/(approve|reject)$/);
+        if(req.method==='POST'&&match)return json(res,200,await onboarding.decide(uid,match[1],match[2]));
+        return json(res,404,{error:'Route not found'});
+      });
+    }
     return await withParticipant(uid, async () => {
+    const passportMatch=url.pathname.match(/^\/api\/passports\/([A-Za-z0-9_-]{1,80})$/);
+    if(req.method==='GET'&&passportMatch){dashboardActor(uid);if(!dashboard)return json(res,503,{error:'Batch storage is unavailable'});return json(res,200,await dashboard.passport(uid,passportMatch[1]));}
     if(req.method==='POST'&&url.pathname==='/api/bulk-transfers'){
       if(!bulkTransfers)return json(res,503,{error:'Background processing is not enabled'});custodyActor(uid);
       return json(res,200,await bulkTransfers.submit(uid,await body(req)));
@@ -166,7 +196,7 @@ const server = http.createServer(async (req, res) => {
       }
       return json(res, 404, { error: 'Review route not found' });
     }
-    if (req.method === 'GET' && url.pathname === '/api/me') { const p=participantFor(uid); return json(res, 200, {uid,role:p.role,organizationId:p.organizationId}); }
+    if (req.method === 'GET' && url.pathname === '/api/me') { const p=participantFor(uid); return json(res, 200, {uid,role:p.role,organizationId:p.organizationId,canManageParticipants:!!onboarding?.isAdmin(uid)}); }
     if (req.method === 'POST' && url.pathname === '/api/harvests') {
       if (!harvests) return json(res, 503, { error: 'Harvest storage is not configured on this server' });
       if (participantFor(uid).role !== 'collector') return json(res, 403, { error: 'An enrolled collector account is required' });

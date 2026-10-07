@@ -1,0 +1,10 @@
+'use strict';
+let participantSession=null,rows=[],working=false;
+const t=key=>Ayur.t(key),el=(tag,text)=>{const node=document.createElement(tag);node.textContent=text;return node;};
+function message(key){document.getElementById('message').textContent=t(key);}
+async function adminApi(path,post){if(!participantSession)throw Error();const response=await fetch(path,{method:post?'POST':'GET',headers:{Authorization:'Bearer '+participantSession.access_token},signal:AbortSignal.timeout(60000)});if(!response.ok)throw Error();return response.json();}
+function render(){const root=document.getElementById('requests');root.replaceChildren();for(const r of rows){const card=el('article','');card.className='card';card.append(el('h2',r.name),el('p',r.email),el('p',t(r.role)+' · '+t(r.state)));if(['pending','failed'].includes(r.state)){for(const decision of ['approve','reject']){const button=el('button',t(decision));button.disabled=working;button.onclick=async()=>{if(working)return;if(!confirm(t('confirmParticipant')+' '+r.name+' · '+t(r.role)))return;working=true;render();try{const result=await adminApi('/api/admin/onboarding/'+encodeURIComponent(r.userId)+'/'+decision,true);message(result.state==='active'?'participantApproved':'accessRejected');await refresh();}catch{message('setupUnavailable');}finally{working=false;render();}};card.append(button);}}root.append(card)}if(!rows.length)root.append(el('p',t('noRequests')));}
+async function refresh(){const data=await adminApi('/api/admin/onboarding');rows=data.requests;render();}
+(async()=>{await Ayur.init();const raw=sessionStorage.getItem('ayur-signin');sessionStorage.removeItem('ayur-signin');if(!raw){message('adminLoginHint');return;}const handoff=JSON.parse(raw);if(Date.now()-handoff.createdAt>60000||handoff.createdAt>Date.now())throw Error();participantSession=handoff.session;await refresh();})().catch(()=>message('adminLoginHint'));
+document.getElementById('refresh').onclick=()=>refresh().catch(()=>message('adminLoginHint'));
+window.addEventListener('ayur-language',render);

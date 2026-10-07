@@ -52,7 +52,11 @@ const config = path.join(runDir, 'identities.json');
 fs.writeFileSync(config, JSON.stringify(identities, null, 2), { mode: 0o600 });
 Object.assign(process.env, { HOST: '127.0.0.1', PORT: '3002', HERBCHAIN_DATA_DIR: dataDir, FABRIC_IDENTITIES_FILE: config,
   FABRIC_CHANNEL: 'herbchain', FABRIC_CHAINCODE: 'herbchain', PUBLIC_IDENTITY: 'consumer-reader',
-  SUPABASE_URL: env.EXPO_PUBLIC_SUPABASE_URL, SUPABASE_ANON_KEY: env.EXPO_PUBLIC_SUPABASE_ANON_KEY });
+  SUPABASE_URL: env.EXPO_PUBLIC_SUPABASE_URL, SUPABASE_ANON_KEY: env.EXPO_PUBLIC_SUPABASE_ANON_KEY,
+  HERBCHAIN_ROOT:root,FABRIC_SAMPLES:samples,
+  HERBCHAIN_ONBOARDING_ENABLED:process.env.HERBCHAIN_ONBOARDING_ENABLED||env.HERBCHAIN_ONBOARDING_ENABLED||'true',
+  HERBCHAIN_AUTO_APPROVE_FARMERS:process.env.HERBCHAIN_AUTO_APPROVE_FARMERS||env.HERBCHAIN_AUTO_APPROVE_FARMERS||'true',
+  HERBCHAIN_ONBOARDING_ADMIN_IDS:process.env.HERBCHAIN_ONBOARDING_ADMIN_IDS||env.HERBCHAIN_ONBOARDING_ADMIN_IDS||accounts.regulator||'' });
 require(path.join(root, 'server/src/server.js'));
 console.log('Farmer API configured on http://127.0.0.1:3002 (Ubuntu localhost).');
 console.log(`Collector account: ${uid}. Private evidence directory: ${dataDir}`);
@@ -66,3 +70,5 @@ console.log('Configured roles: ' + Object.keys(accounts).join(', '));
 console.log('Enrolled participants: '+entries.length+'. Membership mode: '+(process.env.HERBCHAIN_MEMBERSHIP_MODE||'file'));
 console.log(aggregatorUid ? `Aggregator account mapped: ${aggregatorUid}` : 'Optional third account argument: aggregator Supabase UUID.');
 console.log(reviewerUid ? `Reviewer account mapped: ${reviewerUid}` : 'Reviewer not mapped yet. Optional second argument: reviewer Supabase UUID.');
+
+console.log('New farmers enroll automatically when onboarding is enabled. Staff requests are reviewed at http://127.0.0.1:3002/participants by configured administrators.');

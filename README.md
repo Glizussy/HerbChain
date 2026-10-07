@@ -4,6 +4,10 @@ Mobile herb collection, Hyperledger Fabric traceability, and participant web por
 
 For a teammate's computer, Android phone, or Docker deployment, see [Run on another device](docs/SETUP-ANOTHER-DEVICE.md).
 
+The current public product name is **AyurRaksha**. See [Public website and authentication redesign](docs/AYURRAKSHA-UI-REDESIGN.md) for the new screens, run instructions and remaining integration checks.
+
+See [Authenticated interfaces and run guide](docs/AUTHENTICATED-UI.md) for the redesigned participant dashboards, Batch Passport and farmer app.
+
 Start with [Changes and current run instructions](docs/CHANGES-2026-10-02.md) and the [implementation report](docs/IMPLEMENTATION-REPORT.md). These explain the implemented phases, private configuration, tests, and features still awaiting live activation. Reusable local launchers are in `scripts/`; Fabric code is in `blockchain/`, and the API, web portals, migrations and tests are in `server/`.
 
 The remaining sections below are the original farmer-stage design notes. Their proposed future work and record examples do not describe the full current implementation.

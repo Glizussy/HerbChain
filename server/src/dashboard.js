@@ -27,7 +27,8 @@ function createDashboardService({directory,contractFor,actorFor,cloudEvidence=nu
   async function publicDemo(h){try{return demoStatus(h,await verified(h));}catch{return 'UNKNOWN';}}
   function summary(h,a,demo){const b=h.batch;return {batchId:b.batchId,species:b.species,originRegion:b.originRegion,quantityGrams:b.quantityGrams,status:b.status,sequence:b.sequence,labPassed:b.labPassed,productName:b.productName||null,demoStatus:demo,incoming:same(b.pendingTransfer,a),outgoing:owns(b,a)&&!!b.pendingTransfer,inCustody:owns(b,a),published:h.events.some(e=>e.type==='PACKAGED'),actions:actions(h,a)};}
   async function list(uid){const a=actorFor(uid),all=cloudEvidence?[]:await records(),batches=[],warnings=[];for(const entry of await fs.readdir(directory,{withFileTypes:true})){if(!entry.isDirectory()||!/^HC-[a-f0-9]{40}$/.test(entry.name)||!canInspectAssignment(a,entry.name))continue;let h;try{h=await history(uid,entry.name);}catch(e){if(/Batch not found/.test(e.message)){warnings.push('Some local submissions are not yet recorded on Fabric.');continue;}throw e;}if(!canView(h,a))continue;let demo='UNKNOWN';try{demo=demoStatus(h,cloudEvidence?await verified(h):verifiedRecords(h,all))}catch{warnings.push(entry.name+': evidence integrity check failed');}batches.push(summary(h,a,demo));}return {role:a.role,name:a.name,batches,warnings:[...new Set(warnings)],scope:'Harvests stored by this backend; refreshed from Fabric',checkedAt:new Date().toISOString()};}
-  async function evidence(uid,id){const {a,h}=await authorized(uid,id);const verifiedItems=await verified(h);const operations=verifiedItems.map(({record:r,event:e})=>({type:e.type,sequence:e.sequence,transactionId:e.transactionId,evidenceHash:r.evidenceHash,demo:r.document.demo,notes:r.document.notes,label:r.document.label,outcome:r.document.outcome,outputGrams:r.document.outputGrams,hasReport:!!r.document.attachmentHash}));
+  async function evidence(uid,id){const {a,h}=await authorized(uid,id);return evidenceFor(a,h,id);}
+  async function evidenceFor(a,h,id){const verifiedItems=await verified(h);const operations=verifiedItems.map(({record:r,event:e})=>({type:e.type,sequence:e.sequence,transactionId:e.transactionId,evidenceHash:r.evidenceHash,demo:r.document.demo,notes:r.document.notes,label:r.document.label,outcome:r.document.outcome,outputGrams:r.document.outputGrams,hasReport:!!r.document.attachmentHash}));
     let harvest=null,review=null;
     const canReadHarvest=['verifier','regulator'].includes(a.role)||(a.role==='collector' && h.events.some(e=>e.type==='COLLECTED'&&same(e.actor,a)));
     if(canReadHarvest && /^HC-[a-f0-9]{40}$/.test(id)){
@@ -45,6 +46,13 @@ function createDashboardService({directory,contractFor,actorFor,cloudEvidence=nu
     return {batch:summary(h,a,demoStatus(h,verifiedItems)),operations,harvest,review,events:h.events.map(e=>({type:e.type,sequence:e.sequence,timestampSeconds:e.timestampSeconds,transactionId:e.transactionId}))};
   }
   async function report(uid,id,digest){check(/^[a-f0-9]{64}$/.test(digest),'Invalid report digest');const {h}=await authorized(uid,id);if(cloudEvidence)return cloudEvidence.report(h,digest);const found=verifiedRecords(h,await records()).find(x=>x.record.evidenceHash===digest);check(found?.record.document.attachmentHash,'No verified PDF for this event');return Buffer.from(found.record.input.attachment,'base64');}
-  return {list,evidence,report,publicDemo, async provenance(uid,id){return (await authorized(uid,id)).h;}};
+  async function passport(uid,id) {
+    const {a,h}=await authorized(uid,id), data=await evidenceFor(a,h,id);
+    const holder=h.events.slice().reverse().find(e=>e.actor?.identity===h.batch.owner&&e.actor?.msp===h.batch.ownerMsp)?.actor;
+    return {...data,relations:{parents:h.batch.parents||[],children:h.batch.children||[]},currentHolder:{role:holder?.role||null,isYou:owns(h.batch,a),name:owns(h.batch,a)?a.name:null},pendingTransfer:!!h.batch.pendingTransfer,
+      timeline:h.events.map(e=>({type:e.type,sequence:e.sequence,timestampSeconds:e.timestampSeconds,role:e.actor?.role||null,isYou:same(e.actor,a),
+        details:Object.fromEntries(Object.entries(e.details||{}).filter(([k])=>['decision','outcome','method','inputGrams','outputGrams','lossGrams','productName','quantityGrams'].includes(k)))}))};
+  }
+  return {list,evidence,passport,report,publicDemo, async provenance(uid,id){return (await authorized(uid,id)).h;}};
 }
 module.exports={createDashboardService,canView,actions};

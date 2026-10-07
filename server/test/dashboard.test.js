@@ -1,6 +1,18 @@
 'use strict';
 const {test}=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs/promises');const path=require('node:path');const os=require('node:os');const crypto=require('node:crypto');
 const {createDashboardService}=require('../src/dashboard');const sha=v=>crypto.createHash('sha256').update(v).digest('hex');
+test('passport preserves all stages after forwarding and scopes photos and holder identity',async t=>{
+ const f=await fixture(t);f.h.events[0].timestampSeconds='1767225600';f.h.events[0].details={quantityGrams:800,privateIdentity:'secret',reportHash:'secret'};
+ const farmer=await f.service.passport('farmer',f.id);assert.equal(farmer.timeline.length,3);assert.equal(farmer.currentHolder.role,'processor');assert.equal(farmer.currentHolder.isYou,false);assert.equal(farmer.currentHolder.name,null);assert.equal(farmer.harvest.photos.length,1);assert.deepEqual(farmer.timeline[0].details,{quantityGrams:800});assert.equal(JSON.stringify(farmer.timeline).includes('identity'),false);
+ const custodian=await f.service.passport('processor',f.id);assert.equal(custodian.currentHolder.isYou,true);assert.equal(custodian.harvest,null);
+ f.h.batch.pendingTransfer={identity:'manufacturer',msp:'Org1MSP'};const incoming=await f.service.passport('manufacturer',f.id);assert.equal(incoming.currentHolder.role,'processor');assert.equal(incoming.pendingTransfer,true);assert.equal(incoming.currentHolder.isYou,false);
+ await assert.rejects(f.service.passport('other',f.id),/not assigned/);
+});
+test('passport uses a single authorized snapshot for holder, summary, evidence and timeline',async t=>{
+ const f=await fixture(t);let reads=0;const actor={role:'collector',identity:'farmer',msp:'Org1MSP',name:'Farmer'};
+ const service=createDashboardService({directory:f.directory,actorFor:()=>actor,contractFor:()=>({evaluateTransaction:async()=>{reads++;return Buffer.from(JSON.stringify(f.h));}})});
+ const result=await service.passport('farmer',f.id);assert.equal(reads,1);assert.equal(result.batch.sequence,result.timeline.at(-1).sequence);assert.equal(result.currentHolder.role,'processor');
+});
 async function fixture(t){const directory=await fs.mkdtemp(path.join(os.tmpdir(),'hc-dashboard-'));t.after(()=>fs.rm(directory,{recursive:true,force:true}));const id='HC-'+'b'.repeat(40),folder=path.join(directory,id);await fs.mkdir(folder);const photo=Buffer.from('photo fixture'),manifest=Buffer.from(JSON.stringify({batchId:id,submittedBy:'farmer',location:{latitude:1,longitude:2},photos:[{sha256:sha(photo)}]}));await fs.writeFile(path.join(folder,'manifest.json'),manifest);await fs.writeFile(path.join(folder,sha(photo)+'.jpg'),photo);
  const roles={farmer:'collector',other:'collector',processor:'processor',lab:'lab',verifier:'verifier',regulator:'regulator',manufacturer:'manufacturer'};
  const actorFor=uid=>{if(!roles[uid])throw Error('Not enrolled');return {role:roles[uid],identity:uid,msp:['lab','verifier','regulator'].includes(uid)?'Org2MSP':'Org1MSP',name:uid};};
