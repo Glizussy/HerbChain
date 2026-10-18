@@ -20,12 +20,12 @@ export async function submitHerbBatch(record) {
   if(!payload && Platform.OS!=='web') payload=(await outbox.read(session.user.id,record.batchId))?.payload;
   if (!payload) {
     const photos = [];
-    for (const uri of record.photos) {
+    for (const [index,uri] of record.photos.entries()) {
       const image = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1280 } }], {
         compress: 0.8, format: ImageManipulator.SaveFormat.JPEG, base64: true,
       });
       if (!image.base64 || image.base64.length > 4194304) throw new Error('Photo is too large. Choose a smaller photo.');
-      photos.push({ base64: image.base64 });
+      photos.push({ base64: image.base64,source:record.photoCaptures?.[index]?.source,capturedAt:record.photoCaptures?.[index]?.capturedAt });
     }
     const prediction = record.mlPrediction;
     const photoIndex = prediction ? record.photos.indexOf(prediction.sourceUri) : -1;
@@ -48,7 +48,7 @@ async function sendPrepared(session,payload) {
       body: JSON.stringify(payload), signal: controller.signal,
     });
     const result = await response.json().catch(() => ({ error: `Backend returned HTTP ${response.status}` }));
-    if (!response.ok) throw new Error(result.error || 'Harvest submission failed');
+    if (!response.ok){const error=new Error(result.error||'Harvest submission failed');if(result.code==='CAPTURE_VALIDATION'&&!result.transactionId){if(Platform.OS!=='web')await outbox.remove(session.user.id,payload.batchId);prepared.delete(`${session.user.id}:${payload.batchId}`);error.captureRejected=true;}throw error;}
     if(result.committed===true && Platform.OS!=='web') { try{await outbox.remove(session.user.id,payload.batchId);}catch{result.localCleanupPending=true;} }
     return result;
   } finally { clearTimeout(timeout); }

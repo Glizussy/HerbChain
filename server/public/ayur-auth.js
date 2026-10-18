@@ -4,18 +4,18 @@ const roles = [['collector','⌁'],['aggregator','↗'],['verifier','✓'],['lab
 let config = null, selected = null, step = 0, busy = false;
 function showMessage(id, key) { $(id).hidden = false; $(id).dataset.i18n = key; $(id).textContent = Ayur.t(key); }
 async function auth(path, payload) {
+  if(path==='signup'||path==='token?grant_type=password')return fetch('/api/auth/'+(path==='signup'?'signup':'login'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(20000)}).catch(()=>{throw {uiKey:'authUnavailable'};});
   config ||= await fetch('/review-config').then(r => { if (!r.ok) throw Error(); return r.json(); });
   return fetch(config.url + '/auth/v1/' + path, { method: 'POST', headers: { apikey: config.anonKey, 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(15000) });
 }
 async function signupSettings() {
-  config ||= await fetch('/review-config').then(r => { if (!r.ok) throw Error(); return r.json(); });
-  const response = await fetch(config.url + '/auth/v1/settings', { headers: { apikey: config.anonKey }, cache: 'no-store', signal: AbortSignal.timeout(15000) });
+  const response = await fetch('/api/auth/settings', { cache:'no-store', signal:AbortSignal.timeout(20000) });
   if (!response.ok) throw { uiKey: 'authSettingsUnavailable' };
   AyurSignupPolicy.requireNoEmailConfirmation(await response.json());
 }
 async function enrollAccount(session, messageId) {
   showMessage(messageId, 'accountSettingUp');
-  const response=await fetch('/api/onboarding',{method:'POST',headers:{Authorization:'Bearer '+session.access_token},signal:AbortSignal.timeout(60000)});
+  const response=await fetch('/api/onboarding',{method:'POST',headers:{Authorization:'Bearer '+session.access_token},signal:AbortSignal.timeout(60000)}).catch(()=>{throw {uiKey:'setupUnavailable'};});
   if(!response.ok)throw {uiKey:'setupUnavailable'};
   const result=await response.json();
   if(['active','disabled'].includes(result.state))return true;
@@ -39,15 +39,16 @@ async function login(event) {
   event.preventDefault(); if (busy || !$('loginForm').reportValidity()) return; busy = true; $('loginButton').disabled = true; $('loginMessage').hidden = true;
   try {
     const response = await auth('token?grant_type=password', { email: $('email').value.trim(), password: $('password').value }); const session = await response.json(); $('password').value = '';
-    if (!response.ok || !session.access_token || !session.refresh_token) throw Error();
+    if(!response.ok)throw {uiKey:AyurSignupPolicy.authError(session,response.status)};
+    if(!session.access_token||!session.refresh_token)throw {uiKey:'authUnavailable'};
     if(!await enrollAccount(session,'loginMessage'))return;
     const me = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + session.access_token } });
     if (!me.ok) return showMessage('loginMessage', me.status===403?'pending':'unavailable');
     const user = await me.json();
     // One-use same-origin handoff, consumed immediately by the existing workspace.
-    sessionStorage.setItem('ayur-signin', JSON.stringify({ session, createdAt: Date.now() }));
+    try{sessionStorage.setItem('ayur-signin', JSON.stringify({ session, createdAt: Date.now() }));}catch{throw {uiKey:'authStorageUnavailable'};}
     location.assign('/dashboard');
-  } catch (error) { showMessage('loginMessage', error.uiKey || 'authError'); }
+  } catch (error) { showMessage('loginMessage', error.uiKey || 'authUnavailable'); }
   finally { busy = false; $('loginButton').disabled = false; }
 }
 async function recover() {
@@ -68,7 +69,7 @@ async function signup(event) {
     // Preference metadata never grants membership or an enrolled signing identity.
     const response = await auth('signup', { email: $('signupEmail').value.trim(), password: $('signupPassword').value, data: { full_name: $('fullName').value.trim(), requested_role: selected, contact_mobile: $('mobile').value.trim(), organization_name: $('organization').value.trim(), region: $('region').value.trim() } });
     const result = await response.json();
-    if (!response.ok) throw Error();
+    if(!response.ok)throw {uiKey:AyurSignupPolicy.authError(result,response.status)};
     AyurSignupPolicy.registrationUser(result);
     let session = AyurSignupPolicy.registrationSession(result);
     if (!session) {
@@ -82,10 +83,10 @@ async function signup(event) {
     if (session) {
       if(!await enrollAccount(session,'signupMessage'))return;
       try {const me = await fetch('/api/me', { headers: { Authorization: 'Bearer ' + session.access_token } });
-        if (me.ok) { sessionStorage.setItem('ayur-signin', JSON.stringify({ session, createdAt: Date.now() })); location.assign('/dashboard'); }
-      } catch { $('confirmationText').dataset.i18n='pending';$('confirmationText').textContent=Ayur.t('pending'); }
+        if (me.ok) { try{sessionStorage.setItem('ayur-signin', JSON.stringify({ session, createdAt: Date.now() }));}catch{throw {uiKey:'authStorageUnavailable'};} location.assign('/dashboard'); }
+      } catch(error) { const key=error.uiKey||'unavailable';$('confirmationText').dataset.i18n=key;$('confirmationText').textContent=Ayur.t(key); }
     }
-  } catch (error) { showMessage('signupMessage', error.uiKey || 'signupError'); }
+  } catch (error) { showMessage('signupMessage', error.uiKey || 'authUnavailable'); }
   finally { busy = false; $('signupNext').disabled = false; }
 }
 (async () => {
@@ -97,4 +98,4 @@ async function signup(event) {
   $('loginForm').onsubmit = login; $('forgot').onclick = recover; $('showPassword').onchange = e => { $('password').type = e.target.checked ? 'text' : 'password'; };
   $('signupForm').onsubmit = signup; $('signupBack').onclick = () => { if (busy) return; step = Math.max(0, step - 1); renderStep(); };
   window.addEventListener('ayur-language', () => { drawCards('roleCards', selectRole); drawCards('demoCards', role => { selected = role; $('demoPreview').hidden = false; $('demoRole').textContent = Ayur.t(role); $('demoHint').textContent = Ayur.t(role + 'Hint'); }); if (step) renderStep(); if (!$('demoPreview').hidden) { $('demoRole').textContent = Ayur.t(selected); $('demoHint').textContent = Ayur.t(selected + 'Hint'); } });
-})().catch(() => showMessage('loginMessage', 'authError'));
+})().catch(() => showMessage('loginMessage', 'authUnavailable'));

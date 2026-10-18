@@ -1264,5 +1264,341 @@
     "फिर प्रयास करें",
     "पुन्हा प्रयत्न आवश्यक",
     "మళ్ళీ ప్రయత్నించాలి"
+  ],
+  "capturePrivacy": [
+    "Camera and precise location are needed to record a harvest. Your GPS stays private; an approximate area is checked against GBIF species records. Tap Take photo to allow location and camera access.",
+    "पंट दर्ज करने के लिए कैमरा और सटीक स्थान चाहिए। GPS निजी रहेगा; अनुमानित क्षेत्र का GBIF से मिलान होगा। फोटो लेने पर अनुमति दें।",
+    "पिकाची नोंद करण्यासाठी कॅमेरा आणि अचूक स्थान आवश्यक आहे. GPS खाजगी राहतो; अंदाजे क्षेत्र GBIF नोंदींशी तपासले जाते.",
+    "పంట నమోదు కోసం కెమెరా, ఖచ్చితమైన స్థానం అవసరం. GPS గోప్యంగా ఉంటుంది; సుమారు ప్రాంతాన్ని GBIF రికార్డులతో తనిఖీ చేస్తాము."
+  ],
+  "cameraOnlyHint": [
+    "Take a fresh photo with the camera. In the next step, allow location access and capture GPS before submitting.",
+    "कैमरे से नया फोटो लें। अगले चरण में स्थान की अनुमति दें और जमा करने से पहले GPS लें।",
+    "कॅमेऱ्याने नवीन फोटो घ्या. पुढील टप्प्यात स्थानाची परवानगी द्या आणि नोंद पाठवण्यापूर्वी GPS घ्या.",
+    "కెమెరాతో కొత్త ఫోటో తీయండి. తదుపరి దశలో లొకేషన్ అనుమతి ఇచ్చి, సమర్పించే ముందు GPS తీసుకోండి."
+  ],
+  "locationRequired": [
+    "Allow location access and switch on GPS to take a harvest photo.",
+    "स्थान की अनुमति दें और GPS चालू करें।",
+    "स्थानाची परवानगी द्या आणि GPS सुरू करा.",
+    "స్థాన అనుమతి ఇవ్వండి, GPS ఆన్ చేయండి."
+  ],
+  "preciseLocationRequired": [
+    "Enable precise location, move outdoors and try again. Mock GPS is not accepted.",
+    "सटीक स्थान चालू करें, बाहर जाकर फिर प्रयास करें। नकली GPS स्वीकार नहीं है।",
+    "अचूक स्थान सुरू करून बाहेर पुन्हा प्रयत्न करा. बनावट GPS स्वीकारले जात नाही.",
+    "ఖచ్చితమైన స్థానం ఆన్ చేసి బయట మళ్ళీ ప్రయత్నించండి. నకిలీ GPS అనుమతించబడదు."
+  ],
+  "preciseLocationHint": [
+    "GPS must be recent and accurate within 100 m. Allow precise location when your phone asks.",
+    "हाल का GPS, 100 मीटर के भीतर सटीक होना चाहिए।",
+    "अलीकडील GPS 100 मीटरच्या आत अचूक असावा.",
+    "GPS తాజాగానూ, 100 మీటర్ల లోపు ఖచ్చితంగానూ ఉండాలి."
+  ],
+  "freshLocationHint": [
+    "Refresh GPS before submitting. Photos and location must be captured within 15 minutes of each other.",
+    "जमा करने से पहले GPS ताज़ा करें। फोटो और स्थान में 15 मिनट से अधिक अंतर न हो।",
+    "सादर करण्यापूर्वी GPS पुन्हा घ्या. फोटो आणि स्थानामध्ये 15 मिनिटांपेक्षा अधिक अंतर नसावे.",
+    "సమర్పించే ముందు GPS నవీకరించండి. ఫోటో, స్థానానికి మధ్య 15 నిమిషాల కంటే ఎక్కువ ఉండకూడదు."
+  ],
+  "captureRequiredHint": [
+    "Take a new camera photo and complete herb identification before continuing.",
+    "नया कैमरा फोटो लें और जड़ी-बूटी पहचान पूरी करें।",
+    "कॅमेऱ्याने नवीन फोटो घेऊन वनस्पतीची ओळख पूर्ण करा.",
+    "కెమెరాతో కొత్త ఫోటో తీసి మొక్క గుర్తింపును పూర్తి చేయండి."
+  ],
+  "retryIdentification": [
+    "Retry identification",
+    "पहचान फिर करें",
+    "ओळख पुन्हा करा",
+    "గుర్తింపును మళ్ళీ ప్రయత్నించండి"
+  ],
+  "lowConfidenceHint": [
+    "The model is uncertain. A reviewer must examine this photo before approval.",
+    "मॉडल अनिश्चित है। अनुमोदन से पहले समीक्षक फोटो जाँचेंगे।",
+    "मॉडेल अनिश्चित आहे. मंजुरीपूर्वी समीक्षक फोटो तपासेल.",
+    "మోడల్‌కు స్పష్టత లేదు. ఆమోదానికి ముందు సమీక్షకుడు ఫోటో తనిఖీ చేయాలి."
+  ],
+  "speciesMismatchHint": [
+    "Your herb name differs from the model prediction. This needs reviewer resolution.",
+    "नाम मॉडल की पहचान से अलग है। समीक्षक को यह स्पष्ट करना होगा।",
+    "नाव मॉडेलच्या ओळखीपेक्षा वेगळे आहे. समीक्षकाने हे स्पष्ट करणे आवश्यक आहे.",
+    "పేరు మోడల్ అంచనాతో సరిపోలడం లేదు. సమీక్షకుడు పరిష్కరించాలి."
+  ],
+  "regionalCheckHint": [
+    "On submission we check nearby species records. Missing or conflicting evidence stays on hold for independent review. These checks do not prove identity or safety.",
+    "जमा करने पर पास की प्रजाति नोंद जाँचते हैं। अधूरी या विरोधी जानकारी स्वतंत्र समीक्षा तक रुकेगी। इससे पहचान या सुरक्षा सिद्ध नहीं होती।",
+    "सादर केल्यावर जवळच्या प्रजाती नोंदी तपासतो. अपूर्ण किंवा विसंगत माहिती स्वतंत्र तपासणीपर्यंत थांबते. यातून ओळख किंवा सुरक्षितता सिद्ध होत नाही.",
+    "సమర్పించినప్పుడు సమీప జాతి రికార్డులను తనిఖీ చేస్తాము. అసంపూర్ణ లేదా విరుద్ధ ఆధారాలు సమీక్ష వరకు నిలిపి ఉంచబడతాయి. ఇవి గుర్తింపు లేదా భద్రతకు రుజువు కావు."
+  ],
+  "regionalResolutionHint": [
+    "Before approving, record the supporting evidence that resolves each model/location concern. Reject if unresolved.",
+    "अनुमोदन से पहले स्थान और मॉडल की हर चिंता का प्रमाण लिखें। अनसुलझा हो तो अस्वीकार करें।",
+    "मंजुरीपूर्वी स्थान आणि मॉडेलच्या प्रत्येक शंकेचा पुरावा नोंदवा. शंका कायम असल्यास नाकारा.",
+    "ఆమోదానికి ముందు స్థానం, మోడల్ సందేహాలను పరిష్కరించే ఆధారాలు నమోదు చేయండి. పరిష్కారం లేకపోతే తిరస్కరించండి."
+  ],
+  "regionalCorroborated": [
+    "Nearby species records found. Independent review is still required.",
+    "पास में प्रजाति की नोंद मिली। स्वतंत्र समीक्षा अभी भी आवश्यक है।",
+    "जवळ प्रजातीची नोंद मिळाली. स्वतंत्र तपासणी तरीही आवश्यक आहे.",
+    "సమీపంలో జాతి రికార్డులు లభించాయి. స్వతంత్ర సమీక్ష ఇంకా అవసరం."
+  ],
+  "regionalEvidence": [
+    "Evidence resolving model/location concerns (reference and explanation)",
+    "स्थान/मॉडल की चिंताओं का प्रमाण (संदर्भ और कारण)",
+    "स्थान/मॉडेलच्या शंकांचे पुरावे (संदर्भ आणि कारण)",
+    "స్థానం/మోడల్ సందేహాల పరిష్కార ఆధారం (మూలం, వివరణ)"
+  ],
+  "submitHarvest": [
+    "Submit",
+    "जमा करें",
+    "सादर करा",
+    "సమర్పించండి"
+  ],
+  "nav_myBatches": [
+    "Batches",
+    "बैच",
+    "बॅच",
+    "బ్యాచ్‌లు"
+  ],
+  "nav_addBatch": [
+    "Harvest",
+    "फसल",
+    "पीक",
+    "పంట"
+  ],
+  "nav_notifications": [
+    "Alerts",
+    "सूचनाएँ",
+    "सूचना",
+    "సూచనలు"
+  ],
+  "nav_profile": [
+    "Profile",
+    "प्रोफाइल",
+    "प्रोफाइल",
+    "ప్రొఫైల్"
+  ],
+  "LOW_MODEL_CONFIDENCE": [
+    "The model is uncertain. A reviewer must examine this photo before approval.",
+    "मॉडल अनिश्चित है। अनुमोदन से पहले समीक्षक फोटो जाँचेंगे।",
+    "मॉडेल अनिश्चित आहे. मंजुरीपूर्वी समीक्षक फोटो तपासेल.",
+    "మోడల్‌కు స్పష్టత లేదు. ఆమోదానికి ముందు సమీక్షకుడు ఫోటో తనిఖీ చేయాలి."
+  ],
+  "DECLARATION_MODEL_MISMATCH": [
+    "Your herb name differs from the model prediction. This needs reviewer resolution.",
+    "नाम मॉडल की पहचान से अलग है। समीक्षक को यह स्पष्ट करना होगा।",
+    "नाव मॉडेलच्या ओळखीपेक्षा वेगळे आहे. समीक्षकाने हे स्पष्ट करणे आवश्यक आहे.",
+    "పేరు మోడల్ అంచనాతో సరిపోలడం లేదు. సమీక్షకుడు పరిష్కరించాలి."
+  ],
+  "REGION_UNCONFIRMED": [
+    "Before approving, record the supporting evidence that resolves each model/location concern. Reject if unresolved.",
+    "अनुमोदन से पहले स्थान और मॉडल की हर चिंता का प्रमाण लिखें। अनसुलझा हो तो अस्वीकार करें।",
+    "मंजुरीपूर्वी स्थान आणि मॉडेलच्या प्रत्येक शंकेचा पुरावा नोंदवा. शंका कायम असल्यास नाकारा.",
+    "ఆమోదానికి ముందు స్థానం, మోడల్ సందేహాలను పరిష్కరించే ఆధారాలు నమోదు చేయండి. పరిష్కారం లేకపోతే తిరస్కరించండి."
+  ],
+  "REGION_LABEL_UNCONFIRMED": [
+    "Before approving, record the supporting evidence that resolves each model/location concern. Reject if unresolved.",
+    "अनुमोदन से पहले स्थान और मॉडल की हर चिंता का प्रमाण लिखें। अनसुलझा हो तो अस्वीकार करें।",
+    "मंजुरीपूर्वी स्थान आणि मॉडेलच्या प्रत्येक शंकेचा पुरावा नोंदवा. शंका कायम असल्यास नाकारा.",
+    "ఆమోదానికి ముందు స్థానం, మోడల్ సందేహాలను పరిష్కరించే ఆధారాలు నమోదు చేయండి. పరిష్కారం లేకపోతే తిరస్కరించండి."
+  ],
+  "invalidCredentials": [
+    "Supabase did not accept this email and password. Check the account email or reset its password.",
+    "Supabase ने ईमेल और पासवर्ड स्वीकार नहीं किया। ईमेल जाँचें या पासवर्ड बदलें।",
+    "Supabase ने ईमेल आणि पासवर्ड स्वीकारला नाही. ईमेल तपासा किंवा पासवर्ड बदला.",
+    "Supabase ఈమెయిల్, పాస్‌వర్డ్‌ను అంగీకరించలేదు. ఈమెయిల్ తనిఖీ చేయండి లేదా పాస్‌వర్డ్ మార్చండి."
+  ],
+  "authUnavailable": [
+    "We cannot reach the sign-in service right now. Check your connection and make sure the updated API is running, then retry.",
+    "अभी लॉगिन सेवा उपलब्ध नहीं है। कनेक्शन और अपडेट किया हुआ API जाँचकर फिर प्रयास करें।",
+    "लॉगिन सेवा सध्या उपलब्ध नाही. कनेक्शन आणि अद्ययावत API तपासून पुन्हा प्रयत्न करा.",
+    "ప్రస్తుతం లాగిన్ సేవను చేరుకోలేకపోతున్నాము. కనెక్షన్, నవీకరించిన API తనిఖీ చేసి మళ్ళీ ప్రయత్నించండి."
+  ],
+  "existingAccountUnconfirmed": [
+    "This older account is still unconfirmed. Ask the project administrator to confirm this existing account; changing the signup setting alone does not update it.",
+    "यह पुराना खाता अभी अपुष्ट है। व्यवस्थापक से इस खाते की पुष्टि करवाएँ; नई साइनअप सेटिंग इसे नहीं बदलती।",
+    "हे जुने खाते अजून अपुष्ट आहे. प्रशासकाकडून या खात्याची पुष्टी करून घ्या; नवीन नोंदणी सेटिंग हे खाते बदलत नाही.",
+    "ఈ పాత ఖాతా ఇంకా నిర్ధారించబడలేదు. నిర్వాహకుడితో ఖాతా నిర్ధారించుకోండి; కొత్త సైనప్ సెట్టింగ్ పాత ఖాతాను మార్చదు."
+  ],
+  "accountAlreadyExists": [
+    "An account with this email already exists. Log in or reset its password instead of creating it again.",
+    "इस ईमेल का खाता पहले से है। लॉगिन करें या पासवर्ड बदलें।",
+    "या ईमेलचे खाते आधीच आहे. लॉगिन करा किंवा पासवर्ड बदला.",
+    "ఈ ఈమెయిల్‌తో ఖాతా ఇప్పటికే ఉంది. లాగిన్ అవ్వండి లేదా పాస్‌వర్డ్ మార్చండి."
+  ],
+  "authRateLimited": [
+    "Too many sign-in or signup attempts. Wait a few minutes before trying again.",
+    "बहुत अधिक प्रयास हुए। कुछ मिनट बाद फिर कोशिश करें।",
+    "खूप प्रयत्न झाले. काही मिनिटांनी पुन्हा प्रयत्न करा.",
+    "చాలా ప్రయత్నాలు జరిగాయి. కొన్ని నిమిషాల తరువాత మళ్ళీ ప్రయత్నించండి."
+  ],
+  "weakPassword": [
+    "This password does not meet the project password rules. Choose a stronger password.",
+    "पासवर्ड नियमों के अनुसार नहीं है। अधिक मजबूत पासवर्ड चुनें।",
+    "पासवर्ड नियमांनुसार नाही. अधिक मजबूत पासवर्ड निवडा.",
+    "పాస్‌వర్డ్ ప్రాజెక్ట్ నియమాలకు సరిపోలడం లేదు. బలమైన పాస్‌వర్డ్ ఎంచుకోండి."
+  ],
+  "invalidAuthInput": [
+    "Enter a valid email address and check the required fields.",
+    "वैध ईमेल और आवश्यक जानकारी भरें।",
+    "वैध ईमेल आणि आवश्यक माहिती भरा.",
+    "చెల్లుబాటు అయ్యే ఈమెయిల్, అవసరమైన వివరాలు ఇవ్వండి."
+  ],
+  "emailAddressRestricted": [
+    "The project does not allow signup with this email address. Contact the administrator.",
+    "इस ईमेल से नोंदणी अनुमत नहीं है। व्यवस्थापक से संपर्क करें।",
+    "या ईमेलवरून नोंदणीची परवानगी नाही. प्रशासकाशी संपर्क साधा.",
+    "ఈ ఈమెయిల్‌తో సైనప్ అనుమతించబడదు. నిర్వాహకుడిని సంప్రదించండి."
+  ],
+  "signupDisabled": [
+    "New account registration is disabled in this project. Contact the administrator.",
+    "इस प्रोजेक्ट में नई नोंदणी बंद है। व्यवस्थापक से संपर्क करें।",
+    "या प्रकल्पात नवीन नोंदणी बंद आहे. प्रशासकाशी संपर्क साधा.",
+    "ఈ ప్రాజెక్ట్‌లో కొత్త ఖాతా నమోదు నిలిపివేయబడింది. నిర్వాహకుడిని సంప్రదించండి."
+  ],
+  "captchaRequired": [
+    "The project requires a CAPTCHA that this form does not yet support. Contact the administrator to configure the signup form.",
+    "प्रोजेक्ट में CAPTCHA आवश्यक है। व्यवस्थापक से फॉर्म का विन्यास करवाएँ।",
+    "प्रकल्पात CAPTCHA आवश्यक आहे. प्रशासकाकडून फॉर्मची सेटिंग करून घ्या.",
+    "ప్రాజెక్ట్‌కు CAPTCHA అవసరం. ఫారమ్ ఏర్పాటు కోసం నిర్వాహకుడిని సంప్రదించండి."
+  ],
+  "authStorageUnavailable": [
+    "Sign-in succeeded, but browser storage is blocked. Allow site storage for this local website and retry.",
+    "लॉगिन सफल हुआ, पर ब्राउज़र स्टोरेज बंद है। इस साइट का स्टोरेज अनुमति देकर फिर प्रयास करें।",
+    "लॉगिन झाले, पण ब्राउझर स्टोरेज बंद आहे. या साइटसाठी स्टोरेजची परवानगी देऊन पुन्हा प्रयत्न करा.",
+    "లాగిన్ విజయవంతమైంది, కానీ బ్రౌజర్ నిల్వ నిరోధించబడింది. ఈ సైట్‌కు నిల్వ అనుమతించి మళ్ళీ ప్రయత్నించండి."
+  ],
+  "evidenceChecks": [
+    "Photo, identification and location evidence",
+    "फोटो, पहचान और स्थान का प्रमाण",
+    "फोटो, ओळख आणि ठिकाणाचे पुरावे",
+    "ఫోటో, గుర్తింపు మరియు స్థాన ఆధారాలు"
+  ],
+  "gpsAccuracy": [
+    "GPS accuracy",
+    "GPS सटीकता",
+    "GPS अचूकता",
+    "GPS ఖచ్చితత్వం"
+  ],
+  "gpsCapturedAt": [
+    "Location captured at",
+    "स्थान दर्ज करने का समय",
+    "स्थान नोंदवण्याची वेळ",
+    "స్థానం నమోదు చేసిన సమయం"
+  ],
+  "modelVersion": [
+    "Identification model version",
+    "पहचान मॉडल संस्करण",
+    "ओळख मॉडेल आवृत्ती",
+    "గుర్తింపు మోడల్ వెర్షన్"
+  ],
+  "photoLinked": [
+    "Prediction linked to submitted photo",
+    "अनुमान जमा फोटो से जुड़ा है",
+    "अंदाज सादर केलेल्या फोटोशी जोडलेला आहे",
+    "అంచనా సమర్పించిన ఫోటోతో అనుసంధానమైంది"
+  ],
+  "evidenceYes": [
+    "Yes",
+    "हाँ",
+    "होय",
+    "అవును"
+  ],
+  "evidenceNo": [
+    "No",
+    "नहीं",
+    "नाही",
+    "కాదు"
+  ],
+  "gpsConsent": [
+    "Phone location consent recorded",
+    "फोन स्थान की सहमति दर्ज है",
+    "फोन स्थानाची संमती नोंदवली",
+    "ఫోన్ స్థాన అనుమతి నమోదైంది"
+  ],
+  "regionalOutcome": [
+    "Regional check result",
+    "क्षेत्रीय जांच परिणाम",
+    "प्रादेशिक तपासणीचा निकाल",
+    "ప్రాంతీయ తనిఖీ ఫలితం"
+  ],
+  "nearbyRecords": [
+    "Nearby occurrence records",
+    "आस-पास के वनस्पति रिकॉर्ड",
+    "जवळील वनस्पती नोंदी",
+    "సమీప మొక్కల నమోదు ఆధారాలు"
+  ],
+  "simulatedCapture": [
+    "Simulated test batch: web photo and invented collection details. No phone GPS or AI inference was recorded.",
+    "यह परीक्षण बैच है: वेब फोटो और काल्पनिक संग्रह विवरण। फोन GPS या AI अनुमान दर्ज नहीं है।",
+    "हा चाचणी बॅच आहे: वेब फोटो आणि काल्पनिक संकलन तपशील. फोन GPS किंवा AI अंदाज नोंदवलेला नाही.",
+    "ఇది పరీక్ష బ్యాచ్: వెబ్ ఫోటో మరియు కల్పిత సేకరణ వివరాలు. ఫోన్ GPS లేదా AI అంచనా నమోదు కాలేదు."
+  ],
+  "clientEvidenceHint": [
+    "GPS and model confidence are reported by the farmer app. Confidence is not proof of identity or safety; examine the photo and regional evidence.",
+    "GPS और मॉडल विश्वास किसान ऐप से प्राप्त हैं। विश्वास पहचान या सुरक्षा का प्रमाण नहीं है; फोटो और क्षेत्रीय प्रमाण जांचें।",
+    "GPS व मॉडेल विश्वास शेतकरी ॲपमधून मिळतात. विश्वास म्हणजे ओळख किंवा सुरक्षिततेचा पुरावा नाही; फोटो व प्रादेशिक पुरावे तपासा.",
+    "GPS మరియు మోడల్ విశ్వాసం రైతు యాప్ నివేదించినవి. విశ్వాసం గుర్తింపు లేదా భద్రతకు రుజువు కాదు; ఫోటో మరియు ప్రాంతీయ ఆధారాలను పరిశీలించండి."
+  ],
+  "NEARBY_RECORDS": [
+    "Nearby records found",
+    "पास के रिकॉर्ड मिले",
+    "जवळील नोंदी आढळल्या",
+    "సమీప నమోదు ఆధారాలు దొరికాయి"
+  ],
+  "NO_NEARBY_RECORDS": [
+    "No nearby records found",
+    "पास के रिकॉर्ड नहीं मिले",
+    "जवळील नोंदी आढळल्या नाहीत",
+    "సమీప నమోదు ఆధారాలు దొరకలేదు"
+  ],
+  "UNAVAILABLE": [
+    "Regional service unavailable",
+    "क्षेत्रीय सेवा उपलब्ध नहीं",
+    "प्रादेशिक सेवा उपलब्ध नाही",
+    "ప్రాంతీయ సేవ అందుబాటులో లేదు"
+  ],
+  "UNKNOWN_TAXON": [
+    "Species match unresolved",
+    "प्रजाति पहचान अनसुलझी",
+    "प्रजाती ओळख अनिश्चित",
+    "జాతి సరిపోలిక నిర్ధారణ కాలేదు"
+  ],
+  "phoneApiNotConfigured": [
+    "The app is missing its project server address. Ask the project administrator to restart the app with the server connection configured.",
+    "ऐप में परियोजना सर्वर का पता नहीं है। व्यवस्थापक से सर्वर कनेक्शन के साथ ऐप दोबारा शुरू करने को कहें।",
+    "ॲपमध्ये प्रकल्प सर्वरचा पत्ता नाही. प्रशासकाला सर्वर जोडणीसह ॲप पुन्हा सुरू करायला सांगा.",
+    "యాప్‌లో ప్రాజెక్ట్ సర్వర్ చిరునామా లేదు. సర్వర్ కనెక్షన్‌తో యాప్‌ను మళ్లీ ప్రారంభించమని నిర్వాహకుడిని అడగండి."
+  ],
+  "phoneApiUnavailable": [
+    "You are signed in, but this phone cannot reach the project server. Check the connection and keep the server running, then tap Retry.",
+    "आप साइन इन हैं, लेकिन फोन परियोजना सर्वर से नहीं जुड़ पा रहा। कनेक्शन जांचें, सर्वर चालू रखें और फिर पुनः प्रयास करें।",
+    "तुम्ही साइन इन आहात, पण फोन प्रकल्प सर्वरशी जोडला जात नाही. जोडणी तपासा, सर्वर सुरू ठेवा आणि पुन्हा प्रयत्न करा.",
+    "మీరు సైన్ ఇన్ అయ్యారు, కానీ ఫోన్ ప్రాజెక్ట్ సర్వర్‌ను చేరుకోలేకపోతోంది. కనెక్షన్ తనిఖీ చేసి సర్వర్‌ను నడుస్తూ ఉంచి మళ్లీ ప్రయత్నించండి."
+  ],
+  "phoneSessionExpired": [
+    "Your sign-in session has expired. Sign out and log in again.",
+    "साइन इन सत्र समाप्त हुआ। साइन आउट करके फिर लॉग इन करें।",
+    "साइन इन सत्र संपले आहे. साइन आउट करून पुन्हा लॉग इन करा.",
+    "సైన్ ఇన్ సెషన్ గడువు ముగిసింది. సైన్ అవుట్ చేసి మళ్లీ లాగిన్ చేయండి."
+  ],
+  "cameraUnavailable": [
+    "The camera could not open or return a photo. Close other camera apps and try again.",
+    "कैमरा खुल नहीं सका या फोटो नहीं मिला। दूसरे कैमरा ऐप बंद करके फिर कोशिश करें।",
+    "कॅमेरा उघडला नाही किंवा फोटो मिळाला नाही. इतर कॅमेरा ॲप बंद करून पुन्हा प्रयत्न करा.",
+    "కెమెరా తెరవలేదు లేదా ఫోటో రాలేదు. ఇతర కెమెరా యాప్‌లను మూసి మళ్లీ ప్రయత్నించండి."
+  ],
+  "cameraPermissionRequired": [
+    "Allow Camera access for AyurRaksha in your phone settings, then try again.",
+    "फोन की सेटिंग में AyurRaksha को कैमरे की अनुमति दें, फिर कोशिश करें।",
+    "फोनच्या सेटिंगमध्ये AyurRaksha ला कॅमेऱ्याची परवानगी द्या आणि पुन्हा प्रयत्न करा.",
+    "ఫోన్ సెట్టింగ్‌లలో AyurRaksha కు కెమెరా అనుమతి ఇచ్చి మళ్లీ ప్రయత్నించండి."
+  ],
+  "cameraPhotoLimit": [
+    "You can take up to five photos. Remove a photo before taking another.",
+    "अधिकतम पाँच फोटो ले सकते हैं। नया फोटो लेने से पहले एक हटाएँ।",
+    "जास्तीत जास्त पाच फोटो घेता येतात. नवीन फोटो घेण्यापूर्वी एक काढून टाका.",
+    "ఐదు ఫోటోల వరకు తీయవచ్చు. మరో ఫోటో తీసే ముందు ఒకదాన్ని తొలగించండి."
   ]
 }

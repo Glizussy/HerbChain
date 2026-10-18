@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { supabase } from '../lib/supabaseClient';
 import AuthLanguage, { useAuthLanguage } from '../components/AuthLanguage';
-import { requireNoEmailConfirmation, registrationUser } from '../../server/public/ayur-signup-policy';
+import { requireNoEmailConfirmation, registrationUser,authError } from '../../server/public/ayur-signup-policy';
 export default function AyurSignInScreen() {
   const { locale, setLocale, t } = useAuthLanguage();
   const [mode, setMode] = useState('login'), [step, setStep] = useState(0), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [show, setShow] = useState(false);
@@ -24,13 +24,13 @@ export default function AyurSignInScreen() {
           if(!response.ok)throw {uiKey:'authSettingsUnavailable'};requireNoEmailConfirmation(await response.json());
         }finally{clearTimeout(timer);}
         const {data,error} = await supabase.auth.signUp({...credentials, options:{data:{full_name:values.name.trim(), requested_role:'collector', contact_mobile:values.mobile.trim(), organization_name:values.org.trim(), region:values.region.trim()}}});
-        if (error || data.user?.identities?.length === 0) throw Error();
+        if(error)throw {uiKey:authError(error,error.status)};
         registrationUser(data);
         let session=data.session;
         if(!session){const signedIn=await supabase.auth.signInWithPassword(credentials);session=signedIn.error?null:signedIn.data.session;}
         update('password',''); update('confirm',''); setStep(4); setMessage(session ? 'createdNoEmail' : 'createdSignIn');
-      } else { const {error} = await supabase.auth.signInWithPassword(credentials); if(error) throw Error(); }
-    } catch (error) { setMessage(error.uiKey || (mode === 'signup' ? 'signupError' : 'authError')); } finally { setBusy(false); }
+      } else { const {error} = await supabase.auth.signInWithPassword(credentials); if(error)throw {uiKey:authError(error,error.status)}; }
+    } catch (error) { setMessage(error.uiKey || 'authUnavailable'); } finally { setBusy(false); }
   }
   async function recover() {
     if (busy) return;

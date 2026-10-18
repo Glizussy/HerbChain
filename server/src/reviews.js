@@ -3,6 +3,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { canInspectAssignment } = require('./memberships');
+const {approvalCheck}=require('./harvest-checks');
 const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 function check(ok, message) { if (!ok) throw Error(message); }
 function createReviewService({ directory, contractFor, participantFor, archive = null, cloudEvidence = null }) {
@@ -32,7 +33,7 @@ function createReviewService({ directory, contractFor, participantFor, archive =
     try {
       const r = JSON.parse(await fs.readFile(path.join(dir, 'review.json'), 'utf8'));
       check(sha(JSON.stringify(r.document)) === r.evidenceHash, 'Saved review integrity check failed');
-      if (r.document.reviewedBy === uid) savedReview = { decision: r.document.decision, notes: r.document.notes, examined: true, evidenceHash: r.document.harvestEvidenceHash };
+      if (r.document.reviewedBy === uid) savedReview = { decision: r.document.decision, notes: r.document.notes,...(r.document.regionalEvidence?{regionalEvidence:r.document.regionalEvidence}:{}), examined: true, evidenceHash: r.document.harvestEvidenceHash };
     } catch (e) { if (e.code !== 'ENOENT') throw e; }
     return { ...provenance, manifest, photos, evidenceHash: provenance.batch.harvestEvidenceHash, savedReview };
   }
@@ -64,15 +65,16 @@ function createReviewService({ directory, contractFor, participantFor, archive =
     const data = await evidence(uid, id);
     check(input.evidenceHash === data.evidenceHash, 'Evidence changed; reload before reviewing');
     check(data.manifest.submittedBy !== uid, 'A collector cannot review their own submission');
+    approvalCheck(data.manifest,input);
     const file = path.join(folder(id), 'review.json');
     let record;
     try { record = JSON.parse(await fs.readFile(file, 'utf8')); } catch (e) { if (e.code !== 'ENOENT') throw e; }
     if (record) {
-      check(record.document.reviewedBy === uid && record.document.decision === input.decision && record.document.notes === input.notes.trim() && record.document.harvestEvidenceHash === data.evidenceHash, 'A saved review already exists. Retry its original decision and notes.');
+      check(record.document.reviewedBy === uid && record.document.decision === input.decision && record.document.notes === input.notes.trim() && (record.document.regionalEvidence||'')===(input.regionalEvidence||'').trim() && record.document.harvestEvidenceHash === data.evidenceHash, 'A saved review already exists. Retry its original decision and notes.');
       check(sha(JSON.stringify(record.document)) === record.evidenceHash, 'Saved review integrity check failed');
     } else {
       check(data.batch.status === 'PENDING_REVIEW', 'Batch is no longer awaiting review');
-      const document = { schema: 1, batchId: id, reviewedBy: uid, reviewedAt: new Date().toISOString(), decision: input.decision, notes: input.notes.trim(), harvestEvidenceHash: data.evidenceHash, examined: true };
+      const document = { schema: 1, batchId: id, reviewedBy: uid, reviewedAt: new Date().toISOString(), decision: input.decision, notes: input.notes.trim(), ...(input.regionalEvidence?{regionalEvidence:input.regionalEvidence.trim()}:{}),harvestEvidenceHash: data.evidenceHash, examined: true };
       record = { document, evidenceHash: sha(JSON.stringify(document)), phase: 'STORED' };
       await save(file, record);
     }

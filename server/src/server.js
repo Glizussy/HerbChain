@@ -22,7 +22,10 @@ const transfers = process.env.HERBCHAIN_DATA_DIR ? createTransferService({ direc
 const { createHarvestService } = require('./harvests');
 const { createReviewService } = require('./reviews');
 const reviews = process.env.HERBCHAIN_DATA_DIR ? createReviewService({ cloudEvidence, archive, directory: path.resolve(process.env.HERBCHAIN_DATA_DIR), contractFor, participantFor }) : null;
-const harvests = process.env.HERBCHAIN_DATA_DIR ? createHarvestService({ archive, directory: path.resolve(process.env.HERBCHAIN_DATA_DIR), contractFor }) : null;
+const captureChecks=require('./harvest-checks').createHarvestChecks();
+const harvests = process.env.HERBCHAIN_DATA_DIR ? createHarvestService({ archive, captureChecks, directory: path.resolve(process.env.HERBCHAIN_DATA_DIR), contractFor }) : null;
+const demoHarvests = process.env.HERBCHAIN_DATA_DIR ? createHarvestService({ archive, simulation:true, directory:path.resolve(process.env.HERBCHAIN_DATA_DIR), contractFor }) : null;
+const demoImporter = require('./demo-import').createDemoImporter({enabled:process.env.HERBCHAIN_DEMO_IMPORT_ENABLED==='true',onboarding,participantFor,withParticipant,service:demoHarvests});
 for (const key of ['SUPABASE_URL', 'SUPABASE_ANON_KEY', 'PUBLIC_IDENTITY']) {
   if (!process.env[key]) throw new Error(`Missing ${key}`);
 }
@@ -30,7 +33,7 @@ const writeMode=process.env.HERBCHAIN_WRITE_MODE||'local';
 if(!['local','queued'].includes(writeMode))throw Error('Invalid write mode');
 if(writeMode==='queued'&&(!archive||!cloudEvidence||listMode!=='indexed'||process.env.HERBCHAIN_MEMBERSHIP_MODE!=='supabase'))throw Error('Queued mode requires memberships, indexed lists, archive writes and cloud reads');
 const jobRepository=writeMode==='queued'?require('./transaction-queue').createTransactionQueue({url:process.env.SUPABASE_URL,key:process.env.SUPABASE_SERVICE_ROLE_KEY}):null;
-const queuedActions=jobRepository?require('./queued-actions').createQueuedActions({repository:jobRepository,archive,cloudEvidence,contractFor,actorFor:dashboardActor,prepareDirectory,directoryFor:custodyDirectory}):null;
+const queuedActions=jobRepository?require('./queued-actions').createQueuedActions({repository:jobRepository,archive,cloudEvidence,captureChecks,contractFor,actorFor:dashboardActor,prepareDirectory,directoryFor:custodyDirectory}):null;
 const bulkTransfers=queuedActions?require('./bulk-transfers').createBulkTransfers(queuedActions):null;
 const lotsEnabled=process.env.HERBCHAIN_LOTS_ENABLED==='true';
 if(lotsEnabled&&!queuedActions)throw Error('Lot operations require queued writes');
@@ -58,10 +61,13 @@ async function body(req, limit = 32768) {
   for await (const chunk of req) { size += chunk.length; if (size > limit) throw new Error('Request too large'); chunks.push(chunk); }
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
+const authProxy=require('./auth-proxy').createAuthProxy({url:process.env.SUPABASE_URL,key:process.env.SUPABASE_ANON_KEY});
 const server = http.createServer(async (req, res) => {
   let transactionId;
   try {
     const url = new URL(req.url, 'http://localhost');
+    const authRoute=url.pathname.match(/^\/api\/auth\/(settings|login|signup)$/);
+    if(authRoute){let input=null;if(req.method==='POST'){try{input=await body(req,8192);}catch{return json(res,400,{code:'validation_failed'});}}const result=await authProxy.request({action:authRoute[1],method:req.method,origin:req.headers.origin,host:req.headers.host,address:req.socket.remoteAddress,input});return json(res,result.status,result.data);}
     const workspaceFiles={'/participants':'participants.html','/participants.js':'participants.js','/dashboard':'role-workspace.html','/review':'role-workspace.html','/custody':'role-workspace.html','/operations':'role-workspace.html','/activity':'role-workspace.html','/lots':'role-workspace.html','/role-workspace.css':'role-workspace.css','/role-workspace.js':'role-workspace.js','/workspace-components.js':'workspace-components.js','/workspace-store.js':'workspace-store.js','/workspace-translations.json':'workspace-translations.json'};
     if(req.method==='GET'&&Object.hasOwn(workspaceFiles,url.pathname)){const file=workspaceFiles[url.pathname];const type={'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json'}[path.extname(file)];res.writeHead(200,{'Content-Type':type+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'SAMEORIGIN'});return res.end(fs.readFileSync(path.join(__dirname,'../public',file)));}
     if(req.method==='GET'&&['/workspace-config','/app-qr.svg'].includes(url.pathname)){
@@ -123,6 +129,11 @@ const server = http.createServer(async (req, res) => {
           outcome: e.type === 'LAB_TESTED' ? e.details.outcome : undefined })) });
     }
     const uid = await authenticate(req);
+    if(req.method==='POST'&&url.pathname==='/api/admin/demo-harvests'){
+      if(writeMode!=='local'||!demoHarvests)return json(res,503,{error:'Demo fixture import requires local evidence storage'});
+      const result=await demoImporter.submit(uid,await body(req,22*1024*1024));
+      return json(res,result.committed?200:202,result);
+    }
     if(req.method==='POST'&&url.pathname==='/api/onboarding'){
       if(!onboarding)return json(res,200,{state:'disabled'});
       // A verified session supplies the UID and requested role. The browser cannot nominate another account.
@@ -230,7 +241,7 @@ const server = http.createServer(async (req, res) => {
     }, {loadAssignments:!(indexedDashboard && req.method==='GET' && url.pathname==='/api/dashboard')});
   } catch (error) {
     // A failure after submission can mean an unknown commit result; do not claim rollback.
-    json(res, transactionId ? 503 : (error.statusCode || 400), { error: error.message, transactionId,
+    json(res, transactionId ? 503 : (error.statusCode || 400), { error: error.message, transactionId,...(error.code==='CAPTURE_VALIDATION'?{code:error.code}:{}),
       ...(transactionId ? { committed: 'unknown; query batch provenance before retrying' } : {}) });
   }
 });

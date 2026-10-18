@@ -7,12 +7,12 @@ const os = require('node:os');
 const crypto = require('node:crypto');
 const { createReviewService } = require('../src/reviews');
 const sha = b => crypto.createHash('sha256').update(b).digest('hex');
-async function fixture(t) {
+async function fixture(t,captureAssessment=null) {
  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'hc-review-'));
  t.after(()=>fs.rm(directory,{recursive:true,force:true}));
  const id='HC-'+'a'.repeat(40),dir=path.join(directory,id);await fs.mkdir(dir);
  const photo=Buffer.from('sample image fixture'),photoHash=sha(photo);
- const manifest=Buffer.from(JSON.stringify({batchId:id,submittedBy:'farmer',declaredSpecies:'Tulsi',photos:[{sha256:photoHash}]}));
+ const manifest=Buffer.from(JSON.stringify({batchId:id,submittedBy:'farmer',declaredSpecies:'Tulsi',photos:[{sha256:photoHash}],...(captureAssessment?{captureAssessment}:{})}));
  await fs.writeFile(path.join(dir,'manifest.json'),manifest);await fs.writeFile(path.join(dir,photoHash+'.jpg'),photo);
  const h={batch:{batchId:id,status:'PENDING_REVIEW',harvestEvidenceHash:sha(manifest),species:'Tulsi',quantityGrams:1000},events:[]};
  const mode={timeout:false,offline:false,endorseFail:false};let count=0;
@@ -38,3 +38,5 @@ test('review archive failure keeps original decision retryable without a ledger 
  offline=false;assert.equal((await service.submit('reviewer',f.id,f.input)).committed,true);
  assert.deepEqual(kinds,['review']);assert.equal(f.count(),1);
 });
+
+test('flagged regional evidence blocks local approval and preserves exact reviewer resolution',async t=>{const f=await fixture(t,{version:1,needsResolution:true,concerns:['REGION_UNCONFIRMED']});await assert.rejects(f.service.submit('reviewer',f.id,f.input),/evidence resolving/);assert.equal(f.count(),0);const resolved={...f.input,regionalEvidence:'Cultivation records and independent site visit resolve the regional occurrence gap.'};assert.equal((await f.service.submit('reviewer',f.id,resolved)).status,'VERIFIED');const record=JSON.parse(await fs.readFile(path.join(f.options.directory,f.id,'review.json')));assert.equal(record.document.regionalEvidence,resolved.regionalEvidence);await assert.rejects(f.service.submit('reviewer',f.id,{...resolved,regionalEvidence:'Different supporting documents supplied for the same original review.'}),/saved review/);});

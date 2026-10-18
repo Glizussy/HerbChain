@@ -24,7 +24,7 @@ function normalize(raw) {
     if (typeof base64 !== 'string' || base64.length > 4194304 || base64.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) fail('Invalid or oversized photo (maximum 3 MB)');
     const bytes = Buffer.from(base64, 'base64');
     if (bytes.length < 4 || bytes.toString('base64') !== base64 || !bytes.subarray(0, 3).equals(Buffer.from([255,216,255])) || !bytes.subarray(-2).equals(Buffer.from([255,217]))) fail('Expected a JPEG photo');
-    return { bytes, sha256: sha(bytes), mediaType: 'image/jpeg' };
+    return { bytes, sha256: sha(bytes), mediaType: 'image/jpeg',...(raw.capture?{source:p.source,capturedAt:p.capturedAt}:{}) };
   });
   let prediction = null;
   if (raw.mlPrediction) {
@@ -41,10 +41,11 @@ function normalize(raw) {
     collectorLabel: { name: typeof raw.collector?.name === 'string' ? raw.collector.name.slice(0,160) : '', id: typeof raw.collector?.id === 'string' ? raw.collector.id.slice(0,160) : '' },
     sourceType: label(raw.sourceType, 'source type'), harvestMethod: label(raw.harvestMethod, 'harvest method'),
     qualityNotes: typeof raw.qualityNotes === 'string' ? raw.qualityNotes.slice(0,2000) : '',
-    photos: photos.map(p => ({ sha256: p.sha256, mediaType: p.mediaType })), prediction,
+    photos: photos.map(({bytes,...p})=>p), prediction,
+    ...(raw.capture?{capture:{version:raw.capture.version,locationConsent:raw.capture.locationConsent},location:{latitude:lat,longitude:lon,accuracy:raw.location.accuracy,capturedAt:raw.location.capturedAt,mocked:raw.location.mocked===true}}:{}),
   } };
 }
-function createHarvestService({ directory, contractFor, archive = null }) {
+function createHarvestService({ directory, contractFor, archive = null, captureChecks = null, simulation = false }) {
   const locks = new Map();
   const batchId = (uid, clientId) => `HC-${sha(`${uid}:${clientId}`).slice(0,40)}`;
   async function save(file, data) {
@@ -54,21 +55,36 @@ function createHarvestService({ directory, contractFor, archive = null }) {
   }
   async function readEntry(file) { try { return JSON.parse(await fs.readFile(file, 'utf8')); } catch (e) { if (e.code === 'ENOENT') return null; throw e; } }
   const response = e => ({ batchId: e.batchId, clientId: e.clientId, evidenceStored: true, committed: e.phase === 'COMMITTED',
-    status: e.phase === 'COMMITTED' ? e.ledgerStatus : 'REGISTRATION_PENDING', transactionId: e.transactionId || null,
+    status: e.phase === 'COMMITTED' ? e.ledgerStatus : 'REGISTRATION_PENDING', transactionId: e.transactionId || null, captureAssessment:e.captureAssessment||null,
     message: e.phase === 'COMMITTED' ? 'Recorded on Fabric. Independent review is required before use.' : 'Evidence saved. Retry this submission to check or complete blockchain registration.' });
   async function run(uid, raw) {
     const normalized = normalize(raw);
+    if (!simulation && normalized.clientId.startsWith('DEMO-')) throw Object.assign(Error('DEMO submission IDs are reserved for administrator test imports'), {statusCode:400});
+    if (simulation) {
+      const reject = message => { throw Object.assign(Error(message), { statusCode: 400 }); };
+      if (!/^DEMO-[A-Za-z0-9_-]+$/.test(normalized.clientId) || !normalized.record.originRegion.startsWith('DEMO: ')) reject('Demo imports require a DEMO submission ID and DEMO: origin label');
+      if (raw.capture || raw.mlPrediction) reject('Demo web photos cannot claim camera capture, phone GPS consent or model inference');
+      const source = raw.photoAttribution;
+      if (!source || typeof source.author !== 'string' || !source.author.trim() || source.author.length > 1000 || typeof source.license !== 'string' || !/^(CC BY|Public domain|CC0)/.test(source.license)) reject('Licensed photo attribution is required');
+      for (const key of ['sourcePage', 'url', 'licenseURL']) {
+        let address; try { address = new URL(source[key]); } catch { reject('Invalid photo attribution URL'); }
+        if (address.protocol !== 'https:' || address.username || address.password || address.href.length > 2000) reject('Attribution must use HTTPS');
+      }
+      normalized.record.demo = true;
+      normalized.record.simulation = { type:'WEB_PHOTO_TEST_FIXTURE', genuineGPS:false, genuineModelInference:false, photoAttribution: {author:source.author,license:source.license,sourcePage:source.sourcePage,url:source.url,licenseURL:source.licenseURL,changes:'Wikimedia image/thumbnail; downloaded bytes unchanged; test fixture only'} };
+    }
     const id = batchId(uid, normalized.clientId), folder = path.join(directory, id), file = path.join(folder, 'submission.json');
     await fs.mkdir(folder, { recursive: true, mode: 0o700 });
     const fingerprint = sha(JSON.stringify(normalized.record));
     let entry = await readEntry(file);
     if (entry && (entry.uid !== uid || entry.fingerprint !== fingerprint)) fail('This submission ID already has different evidence. Retry the original record or create a new entry.');
     if (!entry) {
+      const captureAssessment=captureChecks?await captureChecks.assess(normalized.record):null;
       // Write evidence before creating the durable submission record.
       for (const photo of normalized.photos) await fs.writeFile(path.join(folder, `${photo.sha256}.jpg`), photo.bytes, { mode: 0o600 });
-      const manifest = Buffer.from(JSON.stringify({ schema: 1, submittedBy: uid, batchId: id, ...normalized.record }));
+      const manifest = Buffer.from(JSON.stringify({ schema: 1, submittedBy: uid, batchId: id, ...normalized.record,...(captureAssessment?{captureAssessment}:{}) }));
       await fs.writeFile(path.join(folder, 'manifest.json'), manifest, { mode: 0o600 });
-      entry = { uid, clientId: normalized.clientId, batchId: id, fingerprint, evidenceHash: sha(manifest), phase: 'STORED',
+      entry = { uid, clientId: normalized.clientId, batchId: id, fingerprint, captureAssessment, evidenceHash: sha(manifest), phase: 'STORED',
         payload: { batchId: id, species: normalized.record.declaredSpecies, originRegion: normalized.record.originRegion,
           quantityGrams: normalized.record.quantityGrams, harvestEvidenceHash: sha(manifest) } };
       await save(file, entry);

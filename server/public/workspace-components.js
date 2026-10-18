@@ -24,5 +24,25 @@ window.WorkspaceUI = (() => {
      actions.append(button(step?'back':'cancel',()=>{if(locked)return;if(!step){onCancel();return}step--;confirmed=false;render()},true));actions.append(button('saveDraft',async()=>{if(locked)return;try{await onDraft(values);notice.hidden=false;notice.textContent=t('draftSaved')}catch{notice.hidden=false;notice.textContent=t('localSaveError')}},true));actions.append(button(step===groups.length?submitLabel:'next',async()=>{if(locked)return;if(step<groups.length){if(!validate()){notice.hidden=false;notice.textContent=t('validation');render();return}step++;render();return}if(!confirmed){notice.hidden=false;notice.textContent=t('confirmInfo');return}locked=true;actions.querySelectorAll('button').forEach(b=>b.disabled=true);try{await onSave(values);}catch(error){notice.hidden=false;notice.textContent=t(error.uiKey||'saveError');locked=false;actions.querySelectorAll('button').forEach(b=>b.disabled=false);} }));
    }render();root.getValues=()=>values;root.refreshLanguage=()=>{heading.textContent=t(title);render();};return root;
  }
- return {herbName,scientificName,el,button,badge,mass,date,facts,empty,BatchCard,BatchTimeline,EvidenceUpload,MultiStepForm};
+ function CaptureEvidence(manifest,photos=[]) {
+  const box=el('section',null,'card capture-evidence');box.append(el('h2',t('evidenceChecks')));
+  const simulated=manifest.demo===true||manifest.simulation?.type==='WEB_PHOTO_TEST_FIXTURE';
+  if(simulated)box.append(el('p',t('simulatedCapture'),'status'));
+  const p=manifest.prediction,loc=manifest.location,assessment=manifest.captureAssessment;
+  box.append(facts([['region',manifest.originRegion],['sourceType',t(manifest.sourceType)],
+   ['modelSuggestion',!simulated&&p?p.plant.replaceAll('_',' ')+' · '+(p.confidence*100).toFixed(1)+'%':t('notRecorded')],
+   ['modelVersion',!simulated&&p?p.modelVersion:t('notRecorded')],
+   ['photoLinked',!simulated&&p?t((manifest.photos||[]).some(photo=>photo.sha256===p.photoSha256)?'evidenceYes':'evidenceNo'):t('notRecorded')],
+   ['location',!simulated&&loc?loc.latitude+', '+loc.longitude:t('notRecorded')],
+   ['gpsAccuracy',!simulated&&Number.isFinite(loc?.accuracy)?loc.accuracy+' m':t('notRecorded')],
+   ['gpsCapturedAt',!simulated&&loc?.capturedAt?new Date(loc.capturedAt).toLocaleString(Ayur.locale):t('notRecorded')],
+   ['gpsConsent',!simulated?t(manifest.capture?.locationConsent===true?'evidenceYes':'evidenceNo'):t('notRecorded')]]));
+  for(const photo of photos){const image=el('img');image.src='data:image/jpeg;base64,'+photo.base64;image.alt=t('herbPhotos');image.style.cssText='max-width:140px;height:140px;object-fit:cover;border-radius:12px;margin:8px';box.append(image);}
+  const attribution=manifest.simulation?.photoAttribution;
+  if(attribution){const link=el('a',attribution.author+' · '+attribution.license);link.href=attribution.sourcePage;link.target='_blank';link.rel='noopener noreferrer';box.append(link);const license=el('a',attribution.license);license.href=attribution.licenseURL;license.target='_blank';license.rel='noopener noreferrer';box.append(license);box.append(el('p',attribution.changes));}
+  if(!simulated)box.append(el('p',t('clientEvidenceHint'),'status'));
+  if(assessment){box.append(facts([['regionalOutcome',t(assessment.region?.state||'notRecorded')],['nearbyRecords',String(assessment.region?.occurrences?.length||0)]]),el('p',t('regionalCheckHint'),'status'),el('p',t(assessment.needsResolution?'regionalResolutionHint':'regionalCorroborated'),'status'));for(const concern of assessment.concerns||[])box.append(el('p',t(concern),'status'));for(const occurrence of assessment.region?.occurrences||[]){const link=el('a','GBIF · '+occurrence.key);link.href=occurrence.reference;link.target='_blank';link.rel='noopener noreferrer';box.append(link);}}
+  return box;
+ }
+ return {CaptureEvidence,herbName,scientificName,el,button,badge,mass,date,facts,empty,BatchCard,BatchTimeline,EvidenceUpload,MultiStepForm};
 })();

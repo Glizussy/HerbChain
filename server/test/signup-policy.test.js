@@ -10,5 +10,5 @@ test('signup recognizes REST and SDK sessions without treating a user-only respo
  assert.equal(registrationSession(session),session);assert.equal(registrationSession({session}),session);
  assert.equal(registrationSession({user:{id:'fixture'}}),null);assert.equal(registrationSession({access_token:'fixture'}),null);
  assert.equal(registrationUser({user:{id:'fixture'}}).id,'fixture');assert.equal(registrationUser({id:'fixture'}).id,'fixture');
- assert.throws(()=>registrationUser({user:{id:'fixture',identities:[]}}),e=>e.uiKey==='signupError');
+ assert.throws(()=>registrationUser({user:{id:'fixture',identities:[]}}),e=>e.uiKey==='accountAlreadyExists');
 });
